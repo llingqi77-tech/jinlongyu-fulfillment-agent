@@ -13,7 +13,7 @@ export function TrackingSystemTabs() {
   const setTrackingSystem = useWorkflowStore((s) => s.setTrackingSystem)
 
   return (
-    <div className="flex gap-1 border-b border-[#E5E5EA] bg-[#FAFBFC] px-2 py-1.5">
+    <div className="flex gap-1 border-b border-pale-stone/20 bg-atmosphere-wash/30 px-2 py-1.5">
       {SYSTEMS.map((sys) => {
         const isActive = active === sys.id
         return (
@@ -22,10 +22,10 @@ export function TrackingSystemTabs() {
             type="button"
             disabled={isAgentRunning && !isActive}
             onClick={() => setTrackingSystem(sys.id)}
-            className={`rounded-lg px-3 py-1 text-[11px] font-medium transition-all ${
+            className={`px-3 py-1 text-[11px] font-medium transition-all ${
               isActive
-                ? 'bg-[var(--color-chat-primary)] text-white shadow-soft'
-                : 'text-muted hover:bg-[var(--color-chat-primary-light)]/60 hover:text-[var(--color-chat-primary)]'
+                ? 'rounded-button bg-off-black text-paper-canvas shadow-soft'
+                : 'btn-secondary-sm rounded-lg !px-3 !py-1'
             } ${isAgentRunning && !isActive ? 'cursor-not-allowed opacity-40' : ''}`}
           >
             {sys.label}

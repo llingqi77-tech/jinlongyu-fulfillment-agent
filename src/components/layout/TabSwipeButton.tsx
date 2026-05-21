@@ -15,7 +15,7 @@ export function TabSwipeButton({ direction }: TabSwipeButtonProps) {
     <button
       type="button"
       onClick={() => setActiveTab(isToTracking ? 'tracking' : 'chat')}
-      className={`absolute top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--color-chat-primary-light)] bg-card/95 text-[var(--color-chat-primary)] shadow-soft backdrop-blur-sm active:opacity-80 ${
+      className={`btn-secondary-icon absolute top-1/2 z-30 h-9 w-9 -translate-y-1/2 backdrop-blur-sm ${
         isToTracking ? 'right-2' : 'left-2'
       }`}
       aria-label={isToTracking ? '滑动至追踪' : '滑动至对话'}
@@ -27,7 +27,7 @@ export function TabSwipeButton({ direction }: TabSwipeButtonProps) {
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
-        className="text-[var(--color-chat-primary)]"
+        className="text-off-black"
       >
         {isToTracking ? (
           <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />

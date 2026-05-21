@@ -6,8 +6,8 @@ interface PendingOrderCardProps {
 
 export function PendingOrderCard({ order }: PendingOrderCardProps) {
   return (
-    <div className="overflow-hidden rounded-card border border-[var(--color-chat-primary-light)] bg-card shadow-soft">
-      <div className="border-b border-[var(--color-chat-primary-light)] px-3 py-2.5">
+    <div className="overflow-hidden rounded-card border border-pale-stone/20 bg-atmosphere-wash/40 shadow-soft">
+      <div className="border-b border-pale-stone/20 px-3 py-2.5">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-ink">待转单</h4>
           <span className="font-mono text-[11px] text-muted">{order.id}</span>

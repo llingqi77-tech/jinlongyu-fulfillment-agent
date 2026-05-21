@@ -16,8 +16,8 @@ function Field({
       <div
         className={`rounded border px-2 py-1.5 text-xs ${
           active
-            ? 'border-[#E67E22] bg-orange-50 ring-1 ring-orange-200'
-            : 'border-[#D1D1D6] bg-white'
+            ? 'border-accent bg-atmosphere-wash/50 ring-1 ring-accent/30'
+            : 'border-pale-stone/40 bg-paper-canvas'
         }`}
       >
         {value || '—'}
@@ -45,16 +45,16 @@ export function PurchaseSystemScreen() {
   if (view === 'login') return <TrackingLoginView system="purchase" />
 
   return (
-    <div className="flex min-h-full flex-col bg-[#FAF7F2] text-ink">
-      <div className="flex shrink-0 items-center gap-1 bg-[#B45309] px-2 py-1.5 text-[10px] text-white">
+    <div className="flex min-h-full flex-col bg-paper-canvas text-ink">
+      <div className="flex shrink-0 items-center gap-1 bg-off-black px-2 py-1.5 text-[10px] text-paper-canvas">
         <span className="font-semibold">SRM</span>
         <span>采购管理系统</span>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col p-2">
       <div
-        className={`flex min-h-0 flex-1 flex-col rounded bg-white p-2 shadow-sm ${
-          screen.flashSave ? 'ring-2 ring-[#E67E22]/40' : ''
+        className={`flex min-h-0 flex-1 flex-col rounded-card bg-paper-canvas p-2 shadow-soft ${
+          screen.flashSave ? 'ring-2 ring-accent/40' : ''
         }`}
       >
         <Field label="采购单号" value={poId} />
@@ -65,8 +65,8 @@ export function PurchaseSystemScreen() {
 
         <div className="mt-auto flex justify-end pt-2">
           <span
-            className={`rounded px-3 py-1 text-[10px] text-white ${
-              screen.flashSave ? 'bg-[#E67E22]' : 'bg-[#B45309]'
+            className={`rounded-button px-3 py-1 text-[10px] text-paper-canvas ${
+              screen.flashSave ? 'bg-accent' : 'bg-off-black'
             }`}
           >
             提交审批

@@ -23,7 +23,7 @@ export function ChatAvatar({ role }: { role: AvatarRole }) {
   if (role === 'user') {
     return (
       <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[var(--color-chat-primary-light)] bg-white text-[var(--color-chat-primary)]"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-off-black bg-paper-canvas text-off-black"
         aria-hidden
       >
         <UserIcon />
@@ -33,7 +33,7 @@ export function ChatAvatar({ role }: { role: AvatarRole }) {
 
   return (
     <div
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-chat-primary)] text-[10px] font-bold tracking-tight text-white"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-off-black text-[10px] font-medium tracking-[0.05em] text-paper-canvas"
       aria-hidden
     >
       AI

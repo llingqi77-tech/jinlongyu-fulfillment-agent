@@ -41,7 +41,7 @@ function UserRow({
   return (
     <div className={`flex w-full min-w-0 justify-end ${dimmed ? 'opacity-45' : ''}`}>
       <div className="flex min-w-0 max-w-[85%] items-start gap-2.5">
-        <div className="min-w-0 flex-1 break-words rounded-bubble bg-[var(--color-chat-bubble-user)] px-3.5 py-2.5 text-[15px] text-white [overflow-wrap:anywhere]">
+        <div className="min-w-0 flex-1 break-words rounded-bubble bg-[var(--color-chat-bubble-user)] px-3.5 py-2.5 text-[15px] text-paper-canvas [overflow-wrap:anywhere]">
           {content}
         </div>
         <ChatAvatar role="user" />
@@ -63,7 +63,7 @@ export function MessageBubble({
     return (
       <div className="py-4">
         <div className="h-px w-full bg-[var(--color-chat-primary-light)]" />
-        <p className="mt-2 text-center text-xs text-[var(--color-chat-primary)]/70">
+        <p className="mt-2 text-center text-xs text-faint-text">
           {NEW_SESSION_MARKER}
         </p>
       </div>
@@ -84,7 +84,7 @@ export function MessageBubble({
     }
     return (
       <AgentRow dimmed={dimmed}>
-        <p className="break-words rounded-bubble border border-[var(--color-chat-primary-light)] bg-[var(--color-chat-bubble-agent)] px-3.5 py-2.5 text-sm leading-relaxed text-ink shadow-soft [overflow-wrap:anywhere]">
+        <p className="break-words rounded-bubble border border-[var(--color-chat-bubble-agent-border)] bg-[var(--color-chat-bubble-agent)] px-3.5 py-2.5 text-sm leading-relaxed text-ink [overflow-wrap:anywhere]">
           {message.content}
         </p>
       </AgentRow>

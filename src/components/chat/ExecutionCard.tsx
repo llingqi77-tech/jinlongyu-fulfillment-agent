@@ -33,7 +33,7 @@ export function ExecutionCard({ steps = [], streaming = false }: ExecutionCardPr
   }, [steps.length, typedLen])
 
   return (
-    <div className="overflow-hidden rounded-card border border-[var(--color-chat-primary-light)] bg-card shadow-soft">
+    <div className="overflow-hidden rounded-card border border-pale-stone/20 bg-atmosphere-wash/40 shadow-soft">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}

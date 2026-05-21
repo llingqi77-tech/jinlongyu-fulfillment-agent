@@ -13,8 +13,8 @@ export function SystemPhoneFrame({ systemTitle, children }: SystemPhoneFrameProp
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col px-2 pb-0 pt-1">
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[20px] border border-[var(--color-chat-primary-light)] bg-card shadow-soft">
-        <div className="flex items-center gap-2 border-b border-[#D1D1D6] bg-[#F2F2F7] px-3 py-2">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-pale-stone/20 bg-paper-canvas shadow-soft">
+        <div className="flex items-center gap-2 border-b border-pale-stone/20 bg-atmosphere-wash/40 px-3 py-2">
           <div className="flex gap-1">
             <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
             <span className="h-2.5 w-2.5 rounded-full bg-[#FFBD2E]" />
@@ -37,7 +37,7 @@ export function SystemPhoneFrame({ systemTitle, children }: SystemPhoneFrameProp
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
           {children}
         </div>
-        <div className="shrink-0 border-t border-[#E5E5EA] bg-[#FAFAFA] px-3 py-1.5">
+        <div className="shrink-0 border-t border-pale-stone/20 bg-paper-canvas px-3 py-1.5">
           <p className="truncate text-[10px] text-muted">{statusText}</p>
         </div>
       </div>

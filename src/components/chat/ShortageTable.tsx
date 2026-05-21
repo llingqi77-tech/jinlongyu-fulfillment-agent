@@ -8,8 +8,8 @@ export function ShortageTable({ lines }: ShortageTableProps) {
   const shortageOnly = lines.filter((l) => l.gap > 0)
 
   return (
-    <div className="overflow-hidden rounded-card border border-[var(--color-chat-primary-light)] bg-card shadow-soft">
-      <div className="border-b border-[var(--color-chat-primary-light)] bg-[var(--color-chat-primary-light)]/30 px-3 py-2">
+    <div className="overflow-hidden rounded-card border border-pale-stone/20 bg-atmosphere-wash/40 shadow-soft">
+      <div className="border-b border-pale-stone/20 bg-atmosphere-wash/60 px-3 py-2">
         <h4 className="text-sm font-semibold text-ink">缺货信息表</h4>
       </div>
       <div className="overflow-x-auto">
@@ -20,7 +20,7 @@ export function ShortageTable({ lines }: ShortageTableProps) {
               <th className="px-2 py-2 font-medium">品名</th>
               <th className="px-2 py-2 font-medium">需求</th>
               <th className="px-2 py-2 font-medium">库存</th>
-              <th className="px-2 py-2 font-medium text-red-600">缺口</th>
+              <th className="px-2 py-2 font-medium text-off-black">缺口</th>
             </tr>
           </thead>
           <tbody>
@@ -30,7 +30,7 @@ export function ShortageTable({ lines }: ShortageTableProps) {
                 <td className="max-w-[80px] truncate px-2 py-2">{line.name}</td>
                 <td className="px-2 py-2">{line.required}</td>
                 <td className="px-2 py-2">{line.available}</td>
-                <td className="px-2 py-2 font-medium text-red-600">{line.gap}</td>
+                <td className="px-2 py-2 font-medium text-off-black">{line.gap}</td>
               </tr>
             ))}
           </tbody>

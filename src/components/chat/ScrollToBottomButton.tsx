@@ -14,7 +14,7 @@ export function ScrollToBottomButton() {
       <button
         type="button"
         onClick={scrollChatToBottom}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-chat-primary-light)] bg-card text-[var(--color-chat-primary)] shadow-soft active:opacity-80"
+        className="btn-secondary-icon h-8 w-8"
         aria-label="滚动到最新消息"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

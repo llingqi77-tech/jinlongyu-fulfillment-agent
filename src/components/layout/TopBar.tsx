@@ -17,7 +17,7 @@ export function TopBar() {
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--color-chat-primary)]"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink"
           aria-label="返回"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -25,14 +25,14 @@ export function TopBar() {
           </svg>
         </button>
         {activeTab === 'chat' && (
-          <span className="truncate text-[15px] font-semibold tracking-tight text-[var(--color-chat-primary)]">
+          <span className="truncate text-[15px] font-medium tracking-tight text-ink">
             完美履约
           </span>
         )}
       </div>
 
       <div className="flex flex-1 justify-center">
-        <div className="flex rounded-full bg-[var(--color-chat-primary-light)] p-0.5">
+        <div className="flex rounded-full border border-off-black/15 bg-segment-track p-0.5">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -40,8 +40,8 @@ export function TopBar() {
               onClick={() => setActiveTab(tab.id)}
               className={`min-w-[72px] rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'bg-card text-[var(--color-chat-primary)] shadow-soft'
-                  : 'text-[var(--color-chat-primary)]/55'
+                  ? 'bg-off-black text-paper-canvas shadow-soft'
+                  : 'text-pale-stone'
               }`}
             >
               {tab.label}
@@ -55,7 +55,7 @@ export function TopBar() {
           type="button"
           disabled={isAgentRunning}
           onClick={() => startNewSession()}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-chat-primary-light)] bg-card text-[var(--color-chat-primary)] disabled:opacity-40"
+          className="btn-secondary-icon h-9 w-9 shrink-0 disabled:opacity-40"
           aria-label="新建"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

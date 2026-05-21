@@ -25,11 +25,40 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
-    'Helvetica Neue', sans-serif;
-  background: var(--color-surface);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-sm);
+  line-height: 1.35;
+  letter-spacing: -0.014em;
+  background: var(--color-paper-canvas);
   color: var(--color-ink);
   overflow: hidden;
+}
+
+@layer components {
+  /* Monad Primary Filled — Off-Black 底 + Paper Canvas 字 */
+  .btn-primary {
+    border-radius: var(--radius-button);
+    @apply bg-off-black px-4 py-3 text-sm font-medium text-paper-canvas transition-opacity active:opacity-80;
+  }
+
+  /* Monad Secondary Ghost — Off-Black 描边 + 字（用 CSS 变量避免 @apply 无法解析自定义 rounded-*） */
+  .btn-secondary {
+    border-radius: var(--radius-button);
+    @apply border-2 border-off-black bg-paper-canvas px-4 py-3 text-sm font-medium text-off-black transition-colors active:bg-segment-track;
+  }
+
+  .btn-secondary-sm {
+    border-radius: var(--radius-button);
+    @apply border-2 border-off-black bg-paper-canvas px-3 py-2 text-sm font-medium text-off-black transition-colors active:bg-segment-track;
+  }
+
+  .btn-secondary-icon {
+    @apply flex items-center justify-center rounded-full border-2 border-off-black bg-paper-canvas text-off-black shadow-soft transition-opacity active:bg-segment-track active:opacity-90;
+  }
+
+  .btn-secondary-pill {
+    @apply rounded-full border-2 border-off-black bg-paper-canvas text-off-black transition-colors active:bg-segment-track;
+  }
 }
 
 @keyframes voice-dot {

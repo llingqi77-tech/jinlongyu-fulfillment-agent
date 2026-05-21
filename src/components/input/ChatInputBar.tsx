@@ -90,7 +90,7 @@ function RecordingDots() {
 function actionCircleClass(emphasized: boolean) {
   return [
     'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-soft active:opacity-80',
-    emphasized ? 'bg-[#1E5BB8]' : 'bg-[#1E5BB8]/35',
+    emphasized ? 'bg-off-black' : 'bg-off-black/35',
   ].join(' ')
 }
 
@@ -148,7 +148,7 @@ function EmailSystemSwitch({
 
   return (
     <div ref={wrapRef} className="relative flex items-center gap-1.5">
-      <span className="text-[12px] font-medium text-[#1E5BB8]">邮件系统</span>
+      <span className="text-[12px] font-medium text-ink">邮件系统</span>
       <button
         type="button"
         role="switch"
@@ -157,8 +157,10 @@ function EmailSystemSwitch({
         disabled={busy}
         onClick={handleClick}
         className={[
-          'relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200',
-          enabled ? 'bg-[#1E5BB8]' : 'bg-[#E9E9EB]',
+          'relative h-7 w-12 shrink-0 rounded-full border transition-colors duration-200',
+          enabled
+            ? 'border-off-black bg-off-black'
+            : 'border-off-black bg-segment-track',
           busy
             ? 'cursor-not-allowed opacity-70'
             : !canToggle
@@ -168,7 +170,7 @@ function EmailSystemSwitch({
       >
         <span
           className={[
-            'absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white transition-transform duration-200',
+            'absolute top-0.5 left-0.5 h-6 w-6 rounded-full border border-off-black/10 bg-paper-canvas shadow-soft transition-transform duration-200',
             enabled ? 'translate-x-5' : 'translate-x-0',
           ].join(' ')}
         />
@@ -176,7 +178,7 @@ function EmailSystemSwitch({
       {showLockHint && (
         <div
           role="tooltip"
-          className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-[var(--color-chat-primary-light)] bg-card px-3 py-2 text-[11px] font-medium text-ink shadow-input"
+          className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-off-black/15 bg-paper-canvas px-3 py-2 text-[11px] font-medium text-ink shadow-input"
         >
           请开启新对话
         </div>
@@ -296,8 +298,8 @@ export function ChatInputBar() {
           <p
             className={`mb-2 text-center text-[13px] transition-colors ${
               willCancel
-                ? 'text-red-500'
-                : 'text-[var(--color-chat-primary)]/70'
+                ? 'text-pale-stone'
+                : 'text-faint-text'
             }`}
           >
             {willCancel ? '松开取消' : '松手输入  上移取消'}
@@ -314,9 +316,9 @@ export function ChatInputBar() {
             className={`flex h-12 min-w-0 flex-1 touch-none select-none items-center justify-center rounded-full shadow-soft transition-colors ${
               voicePanel === 'recording'
                 ? willCancel
-                  ? 'bg-[var(--color-chat-primary)]/45'
-                  : 'bg-[var(--color-chat-primary)]'
-                : 'border border-[var(--color-chat-primary-light)] bg-white text-[15px] font-semibold text-[var(--color-chat-primary)] active:bg-[var(--color-chat-primary-light)]/30'
+                  ? 'bg-off-black/45'
+                  : 'bg-off-black'
+                : 'btn-secondary-pill text-[15px] font-medium'
             }`}
           >
             {voicePanel === 'recording' ? <RecordingDots /> : '按住说话 输入任务'}
@@ -325,7 +327,7 @@ export function ChatInputBar() {
             <button
               type="button"
               onClick={() => setVoicePanel('off')}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--color-chat-primary)] text-white shadow-soft active:opacity-80"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-off-black text-paper-canvas shadow-soft active:opacity-80"
               aria-label="切换键盘输入"
             >
               <KeyboardIcon />
@@ -342,7 +344,7 @@ export function ChatInputBar() {
       style={{ paddingBottom: 'max(8px, var(--safe-bottom))' }}
     >
       <ScrollToBottomButton />
-      <div className="rounded-pill border border-[var(--color-chat-primary-light)] bg-card px-4 py-3 shadow-input">
+      <div className="rounded-pill border border-pale-stone/20 bg-paper-canvas px-4 py-3 shadow-input">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -363,7 +365,7 @@ export function ChatInputBar() {
                   ? `可输入：${EMAIL_PARSE_TODAY_PROMPT}`
                   : '输入订单要求，或使用语音 / 上传图片'
           }
-          className="w-full resize-none border-0 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted disabled:opacity-50"
+          className="w-full resize-none border-0 bg-transparent pl-3 text-[15px] text-ink outline-none placeholder:text-muted disabled:opacity-50"
         />
         <div className="mt-2 flex items-center justify-between">
           <EmailSystemSwitch
@@ -378,7 +380,7 @@ export function ChatInputBar() {
               type="button"
               disabled={isAgentRunning}
               onClick={() => setShowAttachMenu((v) => !v)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center text-[var(--color-chat-primary)] active:opacity-70 disabled:opacity-40"
+              className="flex h-10 w-10 shrink-0 items-center justify-center text-ink active:opacity-70 disabled:opacity-40"
               aria-label="添加附件"
               aria-expanded={showAttachMenu}
             >
@@ -386,11 +388,11 @@ export function ChatInputBar() {
             </button>
 
             {showAttachMenu && !isAgentRunning && (
-              <div className="absolute bottom-full right-0 z-50 mb-2 min-w-[200px] overflow-hidden rounded-xl border border-[var(--color-chat-primary-light)] bg-card py-1 shadow-input">
+              <div className="absolute bottom-full right-0 z-50 mb-2 min-w-[200px] overflow-hidden rounded-card border border-pale-stone/20 bg-paper-canvas py-1 shadow-input">
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-[15px] text-ink transition-colors hover:bg-[var(--color-chat-primary-light)]/50"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-[15px] text-ink transition-colors hover:bg-atmosphere-wash/50"
                 >
                   <PaperclipIcon />
                   <span>添加文件</span>
@@ -399,7 +401,7 @@ export function ChatInputBar() {
                 <button
                   type="button"
                   onClick={() => photoRef.current?.click()}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-[15px] text-ink transition-colors hover:bg-[var(--color-chat-primary-light)]/50"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-[15px] text-ink transition-colors hover:bg-atmosphere-wash/50"
                 >
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -435,7 +437,7 @@ export function ChatInputBar() {
               <button
                 type="button"
                 onClick={handleStopAgent}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#8E8E93] text-white shadow-soft active:opacity-90"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pale-stone text-paper-canvas shadow-soft active:opacity-90"
                 aria-label="停止"
               >
                 <StopIcon />

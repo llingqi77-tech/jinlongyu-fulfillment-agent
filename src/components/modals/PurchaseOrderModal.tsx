@@ -87,7 +87,7 @@ export function PurchaseOrderModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/25 p-4 sm:items-center">
+    <div className="absolute inset-0 z-50 flex items-end justify-center bg-ink/25 p-4">
       <div
         className="w-full max-w-md rounded-card border border-pale-stone/20 bg-paper-canvas p-5 shadow-input"
         role="dialog"

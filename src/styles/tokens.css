@@ -60,4 +60,8 @@
   --shadow-md: rgba(0, 0, 0, 0.1) 0px 0px 10px 0px;
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* 网页端居中展示为手机宽度 */
+  --mobile-app-width: 390px;
+  --desktop-canvas: #e8ecf0;
 }

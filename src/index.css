@@ -26,9 +26,6 @@ body {
   min-height: 100%;
   height: 100%;
   margin: 0;
-  display: flex;
-  justify-content: center;
-  align-items: stretch;
   font-family: var(--font-ui);
   font-size: var(--text-body-sm);
   line-height: 1.35;
@@ -41,26 +38,31 @@ body {
 #root {
   position: relative;
   width: 100%;
-  max-width: var(--mobile-app-width);
   height: 100%;
-  max-height: 100dvh;
-  margin: 0 auto;
+  min-height: 100dvh;
   overflow: hidden;
-  background: var(--color-chat-bg);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.06),
-    0 12px 48px rgba(0, 0, 0, 0.12);
 }
 
-@media (min-width: 420px) {
-  body {
-    align-items: center;
-  }
+.erp-background {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f0f1f3;
+}
 
-  #root {
-    max-height: min(100dvh, 844px);
-    border-radius: 24px;
-  }
+.workbench-overlay {
+  backdrop-filter: blur(2px);
+}
+
+.workbench-modal {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 24px 64px rgba(0, 0, 0, 0.18);
+}
+
+.agent-fab {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 @layer components {

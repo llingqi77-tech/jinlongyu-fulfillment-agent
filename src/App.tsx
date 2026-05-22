@@ -1,13 +1,17 @@
-import { AppShell } from './components/layout/AppShell'
-import { SwipePages } from './components/layout/SwipePages'
-import { PurchaseOrderModal } from './components/modals/PurchaseOrderModal'
+import { ErpBackground } from './components/erp/ErpBackground'
+import { AgentFab } from './components/erp/AgentFab'
+import { WorkbenchModal } from './components/workbench/WorkbenchModal'
+import { WorkbenchShell } from './components/workbench/WorkbenchShell'
 
 function App() {
   return (
-    <AppShell>
-      <SwipePages />
-      <PurchaseOrderModal />
-    </AppShell>
+    <>
+      <ErpBackground />
+      <AgentFab />
+      <WorkbenchModal>
+        <WorkbenchShell />
+      </WorkbenchModal>
+    </>
   )
 }
 

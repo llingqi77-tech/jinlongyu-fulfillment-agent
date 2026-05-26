@@ -1,4 +1,3 @@
-import { WorkbenchNav } from './WorkbenchNav'
 import { WorkbenchContent } from './WorkbenchContent'
 import { useShortageStore } from '../../store/shortageStore'
 import type { WorkbenchRole } from '../../types/shortage'
@@ -21,40 +20,47 @@ export function WorkbenchShell() {
 
   return (
     <>
-      <header className="flex shrink-0 items-center gap-4 border-b border-pale-stone/15 px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold text-ink">缺货履约 Agent 工作台</h1>
-          <p className="text-[11px] text-muted">今日缺货 · {today}</p>
+      <header className="workbench-header">
+        <div className="workbench-header__brand">
+          <div className="workbench-header__logo" aria-hidden>
+            AI
+          </div>
+          <div className="min-w-0">
+          <h1 className="workbench-header__title">缺货履约工作台</h1>
+          <p className="workbench-header__meta">{today}</p>
+          </div>
         </div>
-        <div className="flex rounded-full border-2 border-off-black/15 p-0.5">
-          {ROLES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRole(r.id)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                role === r.id ? 'bg-off-black text-paper-canvas' : 'text-ink hover:bg-segment-track'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+
+        <div className="role-segment" role="tablist" aria-label="工作台角色">
+          {ROLES.map((r) => {
+            const active = role === r.id
+            return (
+              <button
+                key={r.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setRole(r.id)}
+                className={`role-segment__btn ${active ? 'role-segment__btn--active' : ''}`}
+              >
+                {r.label}
+              </button>
+            )
+          })}
         </div>
+
         <button
           type="button"
           onClick={closeWorkbench}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-segment-track hover:text-ink"
+          className="workbench-header__close"
           aria-label="关闭工作台"
         >
           ✕
         </button>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <WorkbenchNav />
-        <main className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-paper-canvas p-4">
-          <WorkbenchContent />
-        </main>
-      </div>
+      <main className="workbench-main">
+        <WorkbenchContent />
+      </main>
     </>
   )
 }

@@ -2,14 +2,17 @@ import { create } from 'zustand'
 import { MOCK_SHORTAGE_ORDERS } from '../mocks/shortageOrders'
 import type {
   ActivityEvent,
-  SalesUrgency,
+  FulfillmentMethod,
+  PipelineStageFilter,
   ShortagePO,
-  SupplyPlanInput,
-  OpsListFilter,
-  WorkbenchNav,
   WorkbenchRole,
 } from '../types/shortage'
-import { recomputeLineStatus } from '../utils/shortageAggregations'
+import {
+  ensureLineSuppliers,
+  recomputeLineStatus,
+} from '../utils/shortageAggregations'
+import { syncLegacySalesUrgency } from '../utils/shortageLineDefaults'
+import type { SupplierStockStatus } from '../types/shortage'
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -22,51 +25,41 @@ const nowTime = () =>
 function cloneOrders(orders: ShortagePO[]): ShortagePO[] {
   return orders.map((po) => ({
     ...po,
-    lines: po.lines.map((l) => ({ ...l })),
+    lines: po.lines.map((l) => ({ ...l, recommendedSuppliers: [...l.recommendedSuppliers] })),
   }))
-}
-
-const ROLE_DEFAULT_NAV: Record<WorkbenchRole, WorkbenchNav> = {
-  ops: 'home',
-  sales: 'home',
-  procurement: 'home',
 }
 
 interface ShortageState {
   workbenchOpen: boolean
   role: WorkbenchRole
-  nav: WorkbenchNav
   orders: ShortagePO[]
-  selectedPoId: string | null
-  selectedSku: string | null
-  selectedHotel: string | null
+  selectedTaskLineId: string | null
   activityEvents: ActivityEvent[]
-  generatePoPoId: string | null
-  supplyDialog: { lineId: string } | null
+  generatePoLineId: string | null
+  pipelineFilter: PipelineStageFilter | null
   toast: string | null
-  opsListFilter: OpsListFilter | null
+  signoffTimerId: ReturnType<typeof setInterval> | null
 
   openWorkbench: () => void
   closeWorkbench: () => void
   setRole: (role: WorkbenchRole) => void
-  setNav: (nav: WorkbenchNav) => void
-  goToOpsFilteredList: (filter: OpsListFilter) => void
-  clearOpsListFilter: () => void
+  setPipelineFilter: (filter: PipelineStageFilter | null) => void
+  selectTaskLine: (lineId: string | null) => void
   loadTodayShortages: () => void
-  selectPo: (id: string | null) => void
-  selectSku: (sku: string | null) => void
-  selectHotel: (hotel: string | null) => void
-  setSalesIntent: (lineId: string, urgency: SalesUrgency, note: string) => void
-  setSalesIntentForPo: (poId: string, urgency: SalesUrgency, note: string) => void
-  openSupplyDialog: (payload: { lineId: string }) => void
-  closeSupplyDialog: () => void
-  applySupplyPlan: (input: SupplyPlanInput, target: { lineIds: string[] }) => void
-  openGeneratePo: (poId: string) => void
+  setOpsAdvice: (lineId: string, advice: string) => void
+  setFulfillmentMethod: (lineId: string, method: FulfillmentMethod, note?: string) => void
+  setSupplierStock: (lineId: string, supplierId: string, hasStock: SupplierStockStatus) => void
+  selectSupplier: (lineId: string, supplierId: string) => void
+  applyCustomSupplier: (lineId: string, name: string, amount: number, supplierId?: string) => void
+  generateProcurementDraft: (lineId: string) => void
+  openGeneratePo: (lineId: string) => void
   closeGeneratePo: () => void
-  generatePurchaseOrder: (poId: string, lineIds: string[]) => void
+  confirmProcurementToErp: (lineId: string) => void
+  applySignoff: (lineId: string, qty?: number) => void
+  startSignoffMock: () => void
+  stopSignoffMock: () => void
   pushActivity: (event: Omit<ActivityEvent, 'id' | 'timestamp'>) => void
   setToast: (msg: string | null) => void
-  updateOrders: (updater: (orders: ShortagePO[]) => ShortagePO[]) => void
 }
 
 function patchLine(
@@ -78,68 +71,54 @@ function patchLine(
     ...po,
     lines: po.lines.map((line) => {
       if (line.id !== lineId) return line
-      const next = { ...line, ...patch }
-      return recomputeLineStatus(next)
+      const merged = ensureLineSuppliers({ ...line, ...patch })
+      return recomputeLineStatus(merged)
     }),
   }))
+}
+
+function createSalesOutboundNo(type: 'order_direct' | 'backorder') {
+  const prefix = type === 'order_direct' ? 'SO-D' : 'SO-B'
+  return `${prefix}-${Date.now().toString().slice(-8)}`
 }
 
 export const useShortageStore = create<ShortageState>((set, get) => ({
   workbenchOpen: false,
   role: 'ops',
-  nav: 'home',
   orders: [],
-  selectedPoId: null,
-  selectedSku: null,
-  selectedHotel: null,
+  selectedTaskLineId: null,
   activityEvents: [],
-  generatePoPoId: null,
-  supplyDialog: null,
+  generatePoLineId: null,
+  pipelineFilter: null,
   toast: null,
-  opsListFilter: null,
+  signoffTimerId: null,
 
   openWorkbench: () => {
-    const { orders } = get()
+    const { orders, signoffTimerId } = get()
     if (orders.length === 0) get().loadTodayShortages()
+    if (!signoffTimerId) get().startSignoffMock()
     set({ workbenchOpen: true })
   },
 
-  closeWorkbench: () => set({ workbenchOpen: false, supplyDialog: null, generatePoPoId: null }),
+  closeWorkbench: () => {
+    get().stopSignoffMock()
+    set({ workbenchOpen: false, generatePoLineId: null, selectedTaskLineId: null })
+  },
 
   setRole: (role) =>
     set({
       role,
-      nav: ROLE_DEFAULT_NAV[role],
-      selectedPoId: null,
-      selectedSku: null,
-      selectedHotel: null,
-      opsListFilter: null,
+      selectedTaskLineId: null,
+      pipelineFilter: null,
     }),
 
-  setNav: (nav) =>
-    set({
-      nav,
-      opsListFilter: nav === 'home' ? null : get().opsListFilter,
-      ...(nav === 'tasks'
-        ? {
-            selectedPoId: null,
-            selectedSku: null,
-            selectedHotel: null,
-            opsListFilter: null,
-          }
-        : {}),
-    }),
+  setPipelineFilter: (filter) =>
+    set((s) => ({
+      pipelineFilter: s.pipelineFilter === filter ? null : filter,
+      selectedTaskLineId: null,
+    })),
 
-  goToOpsFilteredList: (filter) =>
-    set({
-      nav: 'home',
-      opsListFilter: filter,
-      selectedPoId: null,
-      selectedSku: null,
-      selectedHotel: null,
-    }),
-
-  clearOpsListFilter: () => set({ opsListFilter: null }),
+  selectTaskLine: (lineId) => set({ selectedTaskLineId: lineId }),
 
   loadTodayShortages: () => {
     const orders = cloneOrders(MOCK_SHORTAGE_ORDERS)
@@ -151,105 +130,179 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
           timestamp: nowTime(),
           actor: '系统',
           type: 'sync',
-          content: `今日缺货已同步：${orders.length} 张缺货单，已推送运营/销售/采购`,
+          content: `今日缺货已同步：${orders.length} 张待转单，已推送运营/销售/采购`,
         },
       ],
     })
   },
 
-  selectPo: (id) => set({ selectedPoId: id }),
-  selectSku: (sku) => set({ selectedSku: sku }),
-  selectHotel: (hotel) => set({ selectedHotel: hotel }),
-
-  setSalesIntent: (lineId, urgency, note) => {
-    const orders = patchLine(get().orders, lineId, {
-      salesUrgency: urgency,
-      salesNote: note,
-    })
+  setOpsAdvice: (lineId, advice) => {
+    const orders = patchLine(get().orders, lineId, { opsAdvice: advice.trim() })
     set({ orders })
-    get().pushActivity({
-      actor: '销售',
-      type: 'sales',
-      content: `已登记客户时效：${urgency === 'must_on_time' ? '必须当期到货' : '不急'}`,
-      ref: { poId: get().orders.find((o) => o.lines.some((l) => l.id === lineId))?.id },
-    })
-  },
-
-  setSalesIntentForPo: (poId, urgency, note) => {
-    const orders = get().orders.map((po) => {
-      if (po.id !== poId) return po
-      return {
-        ...po,
-        lines: po.lines.map((line) => {
-          if (!line.isShortage) return line
-          return recomputeLineStatus({
-            ...line,
-            salesUrgency: urgency,
-            salesNote: note,
-          })
-        }),
-      }
-    })
-    set({ orders })
-    get().pushActivity({
-      actor: '销售',
-      type: 'sales',
-      content: `批量登记 ${poId} 客户时效`,
-      ref: { poId },
-    })
-  },
-
-  openSupplyDialog: (payload) => set({ supplyDialog: payload }),
-  closeSupplyDialog: () => set({ supplyDialog: null }),
-
-  applySupplyPlan: (input, { lineIds }) => {
-    let orders = get().orders
-    for (const lineId of lineIds) {
-      orders = patchLine(orders, lineId, {
-        supplierName: input.supplierName,
-        amount: input.amount,
-        eta: '',
-        isExpedited: false,
-        expediteFee: 0,
-        procurementMode: 'normal',
-      })
-    }
-    set({ orders, supplyDialog: null })
-    get().pushActivity({
-      actor: '采购',
-      type: 'procurement',
-      content: `已录入供应方案：${input.supplierName}，金额 ¥${input.amount.toLocaleString()}`,
-    })
-    get().setToast('方案已保存，已流转运营生成采购订单')
-  },
-
-  openGeneratePo: (poId) => set({ generatePoPoId: poId }),
-  closeGeneratePo: () => set({ generatePoPoId: null }),
-
-  generatePurchaseOrder: (poId, lineIds) => {
-    const poNumber = `PU-${Date.now().toString().slice(-6)}`
-    const orders = get().orders.map((po) => {
-      if (po.id !== poId) return po
-      return {
-        ...po,
-        lines: po.lines.map((line) => {
-          if (!lineIds.includes(line.id)) return line
-          return {
-            ...line,
-            status: 'completed' as const,
-            opsPoNumber: poNumber,
-          }
-        }),
-      }
-    })
-    set({ orders, generatePoPoId: null })
     get().pushActivity({
       actor: '运营',
       type: 'ops',
-      content: `已生成采购订单 ${poNumber} 并写入系统`,
+      content: '已确认 Agent 履约建议并流转销售',
+      ref: { poId: get().orders.find((o) => o.lines.some((l) => l.id === lineId))?.id },
+    })
+    get().setToast('履约建议已确认，已流转销售')
+  },
+
+  setFulfillmentMethod: (lineId, method, note = '') => {
+    const line = get()
+      .orders.flatMap((o) => o.lines.map((l) => ({ ...l, po: o })))
+      .find((l) => l.id === lineId)
+    if (!line) return
+
+    const patch: Partial<ShortagePO['lines'][0]> = {
+      fulfillmentMethod: method,
+      salesNote: note,
+      salesUrgency: syncLegacySalesUrgency(method),
+    }
+
+    if (method === 'direct_ship' || method === 'normal_replenishment' || method === 'substitute') {
+      patch.salesOutboundType = 'order_direct'
+      patch.salesOutboundNo = line.salesOutboundNo || createSalesOutboundNo('order_direct')
+      patch.expectedFulfillQty = line.gap
+    } else if (method === 'defer') {
+      patch.salesOutboundType = 'backorder'
+      patch.salesOutboundNo = line.salesOutboundNo || createSalesOutboundNo('backorder')
+      patch.expectedFulfillQty = line.gap
+    } else if (method === 'must_on_time') {
+      patch.salesOutboundType = null
+      patch.recommendedSuppliers = line.recommendedSuppliers.length
+        ? line.recommendedSuppliers
+        : ensureLineSuppliers(line).recommendedSuppliers
+    }
+
+    const orders = patchLine(get().orders, lineId, patch)
+    set({ orders })
+    const poId = get().orders.find((o) => o.lines.some((l) => l.id === lineId))?.id
+    get().pushActivity({
+      actor: '销售',
+      type: 'sales',
+      content:
+        method === 'must_on_time'
+          ? '已确认当期到货（加急），已流转采购'
+          : `已确认履约方式并生成出库单`,
       ref: { poId },
     })
-    get().setToast(`采购订单 ${poNumber} 已生成`)
+    get().setToast(
+      method === 'must_on_time'
+        ? '已转采购寻源'
+        : `已生成${patch.salesOutboundType === 'backorder' ? ' Backorder ' : ' '}销售出库订单`
+    )
+  },
+
+  setSupplierStock: (lineId, supplierId, hasStock) => {
+    const orders = get().orders.map((po) => ({
+      ...po,
+      lines: po.lines.map((line) => {
+        if (line.id !== lineId) return line
+        return {
+          ...line,
+          recommendedSuppliers: line.recommendedSuppliers.map((s) =>
+            s.id === supplierId ? { ...s, hasStock } : s
+          ),
+        }
+      }),
+    }))
+    set({ orders })
+  },
+
+  selectSupplier: (lineId, supplierId) => {
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    const supplier = line?.recommendedSuppliers.find((s) => s.id === supplierId)
+    if (!supplier) return
+    const orders = patchLine(get().orders, lineId, {
+      selectedSupplierId: supplierId,
+      supplierName: supplier.name,
+    })
+    set({ orders })
+  },
+
+  applyCustomSupplier: (lineId, name, amount, supplierId = 'custom') => {
+    const orders = patchLine(get().orders, lineId, {
+      selectedSupplierId: supplierId,
+      supplierName: name.trim(),
+      amount,
+      procurementMode: 'normal',
+    })
+    set({ orders })
+    get().setToast(supplierId === 'custom' ? '已录入自定义供应商' : '已选用供应商')
+  },
+
+  generateProcurementDraft: (lineId) => {
+    const draftNo = `DRAFT-${Date.now().toString().slice(-5)}`
+    const orders = patchLine(get().orders, lineId, { procurementDraftNo: draftNo })
+    set({ orders, generatePoLineId: lineId })
+    get().pushActivity({
+      actor: 'Agent',
+      type: 'procurement',
+      content: `已生成采购订单草稿 ${draftNo}`,
+    })
+  },
+
+  openGeneratePo: (lineId) => set({ generatePoLineId: lineId }),
+  closeGeneratePo: () => set({ generatePoLineId: null }),
+
+  confirmProcurementToErp: (lineId) => {
+    const poNumber = `PU-${Date.now().toString().slice(-6)}`
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    const orders = patchLine(get().orders, lineId, {
+      procurementConfirmed: true,
+      opsPoNumber: poNumber,
+      procurementMode: 'urgent',
+      expectedFulfillQty: (line?.expectedFulfillQty ?? 0) + (line?.gap ?? 0),
+    })
+    set({ orders, generatePoLineId: null })
+    get().pushActivity({
+      actor: '运营',
+      type: 'ops',
+      content: `采购订单 ${poNumber} 已写入金龙鱼采购系统`,
+    })
+    get().setToast(`采购订单 ${poNumber} 已确认下发`)
+  },
+
+  applySignoff: (lineId, qty) => {
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    if (!line || !line.isShortage) return
+    const signQty = qty ?? line.gap
+    const actual = Math.min(line.expectedFulfillQty || line.gap, signQty)
+    const orders = patchLine(get().orders, lineId, {
+      actualFulfillQty: actual,
+      signoffStatus: actual >= (line.expectedFulfillQty || line.gap) ? 'signed' : 'partial',
+      signoffAt: new Date().toISOString().slice(0, 10),
+    })
+    set({ orders })
+    get().pushActivity({
+      actor: '物流',
+      type: 'logistics',
+      content: `客户签收 ${actual}${line.unit}`,
+    })
+  },
+
+  startSignoffMock: () => {
+    if (get().signoffTimerId) return
+    const id = setInterval(() => {
+      const pending = get()
+        .orders.flatMap((o) => o.lines.map((l) => ({ ...l, po: o })))
+        .find(
+          (l) =>
+            l.isShortage &&
+            l.expectedFulfillQty > 0 &&
+            l.signoffStatus !== 'signed' &&
+            ['await_logistics', 'ready_for_po'].includes(l.status)
+        )
+      if (pending) get().applySignoff(pending.id)
+    }, 12000)
+    set({ signoffTimerId: id })
+  },
+
+  stopSignoffMock: () => {
+    const id = get().signoffTimerId
+    if (id) clearInterval(id)
+    set({ signoffTimerId: null })
   },
 
   pushActivity: (event) =>
@@ -264,6 +317,4 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
     set({ toast: msg })
     if (msg) setTimeout(() => set({ toast: null }), 2800)
   },
-
-  updateOrders: (updater) => set((s) => ({ orders: updater(s.orders) })),
 }))

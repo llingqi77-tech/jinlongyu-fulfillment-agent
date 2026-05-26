@@ -1,66 +1,50 @@
 import { useShortageStore } from '../../../store/shortageStore'
-import { SALES_URGENCY_LABEL } from '../../../constants/shortageLabels'
+import { FULFILLMENT_METHOD_LABEL } from '../../../constants/shortageLabels'
 
 export function GeneratePoConfirm() {
-  const poId = useShortageStore((s) => s.generatePoPoId)
+  const lineId = useShortageStore((s) => s.generatePoLineId)
   const orders = useShortageStore((s) => s.orders)
   const closeGeneratePo = useShortageStore((s) => s.closeGeneratePo)
-  const generatePurchaseOrder = useShortageStore((s) => s.generatePurchaseOrder)
+  const confirmProcurementToErp = useShortageStore((s) => s.confirmProcurementToErp)
 
-  if (!poId) return null
+  if (!lineId) return null
 
-  const po = orders.find((o) => o.id === poId)
-  if (!po) return null
-
-  const readyLines = po.lines.filter((l) => l.status === 'ready_for_po')
+  const ctx = orders.flatMap((o) => o.lines.map((l) => ({ ...l, po: o }))).find((l) => l.id === lineId)
+  if (!ctx) return null
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/30 p-4">
-      <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-card border border-pale-stone/20 bg-paper-canvas p-5 shadow-md">
-        <h3 className="text-base font-semibold text-ink">生成采购订单确认</h3>
-        <p className="mt-1 text-xs text-muted">
-          {po.id} · {po.customerName}
-        </p>
-        <table className="mt-4 w-full text-left text-xs">
-          <thead className="text-muted">
-            <tr>
-              <th className="py-2">品名</th>
-              <th className="py-2">还缺</th>
-              <th className="py-2">客户要求</th>
-              <th className="py-2">供应商</th>
-              <th className="py-2">金额</th>
-            </tr>
-          </thead>
-          <tbody>
-            {readyLines.map((line) => (
-              <tr key={line.id} className="border-t border-pale-stone/10">
-                <td className="py-2">{line.productName}</td>
-                <td className="py-2">
-                  {line.gap}
-                  {line.unit}
-                </td>
-                <td className="py-2">{SALES_URGENCY_LABEL[line.salesUrgency]}</td>
-                <td className="py-2">{line.supplierName}</td>
-                <td className="py-2">¥{line.amount.toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="mt-5 flex justify-end gap-2">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-tech bg-white p-6 shadow-elevated">
+        <h3 className="text-heading-sm font-medium tracking-tight text-ink">确认采购订单</h3>
+        <p className="mt-1 font-mono text-caption text-muted">草稿 {ctx.procurementDraftNo}</p>
+        <dl className="mt-6 space-y-3 text-body-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">品名</dt>
+            <dd className="text-ink">{ctx.productName}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">酒店</dt>
+            <dd className="text-ink">{ctx.po.customerName}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">履约方式</dt>
+            <dd className="text-ink">{FULFILLMENT_METHOD_LABEL[ctx.fulfillmentMethod]}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">供应商</dt>
+            <dd className="text-ink">{ctx.supplierName}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">金额</dt>
+            <dd className="font-mono font-semibold text-fire-orange">¥{ctx.amount.toLocaleString()}</dd>
+          </div>
+        </dl>
+        <div className="mt-8 flex justify-end gap-3">
           <button type="button" className="btn-secondary-sm" onClick={closeGeneratePo}>
             取消
           </button>
-          <button
-            type="button"
-            className="btn-primary text-xs"
-            onClick={() =>
-              generatePurchaseOrder(
-                po.id,
-                readyLines.map((l) => l.id)
-              )
-            }
-          >
-            确认生成并写入系统
+          <button type="button" className="btn-primary" onClick={() => confirmProcurementToErp(lineId)}>
+            一键确认并传入采购系统
           </button>
         </div>
       </div>

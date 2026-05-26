@@ -1,67 +1,119 @@
 :root {
-  /* Monad — Colors */
-  --color-ink: #000000;
-  --color-paper-canvas: #f6f3f1;
-  --color-off-black: #242424;
-  --color-pale-stone: #4e4d4d;
-  --color-whisper-gray: #3d3d3d;
-  --color-atmosphere-wash: #cfdaf5;
-  --color-subtle-link: #333333;
-  --color-faint-text: #797776;
-  --gradient-sunset-violet: linear-gradient(
-    rgba(255, 148, 115, 0.8) 7%,
-    rgba(160, 181, 235, 0.8) 83.82%
-  );
-  --gradient-sky-mint: linear-gradient(rgb(160, 181, 235), rgb(167, 252, 205));
-  --gradient-amber-glow: linear-gradient(
-    270deg,
-    rgba(226, 193, 97, 0.7) 23.5%,
-    rgba(243, 122, 10, 0.7) 76%
-  );
+  /* Brand — Orange SaaS */
+  --color-brand: #ff4d00;
+  --color-brand-dark: #e64500;
+  --color-brand-darker: #cc3d00;
+  --color-brand-light: #fff4ef;
+  --color-brand-muted: rgba(255, 77, 0, 0.1);
+  --color-brand-ring: rgba(255, 77, 0, 0.25);
 
-  /* App semantic aliases */
-  --color-surface: var(--color-paper-canvas);
-  --color-card: var(--color-paper-canvas);
-  --color-muted: var(--color-pale-stone);
-  --color-border: var(--color-off-black);
-  --color-accent: var(--color-off-black);
-  /* Segmented control / switch track — between Paper Canvas and Off-Black */
-  --color-segment-track: #ded9d4;
+  /* Aliases (Firecrawl legacy names) */
+  --color-fire-orange: var(--color-brand);
+  --color-code-blue: var(--color-brand);
+  --color-cloud-canvas: #f0e8e2;
+  --color-canvas-warm: #faf6f3;
+  --color-ink-black: #262626;
+  --color-paper-white: #ffffff;
+  --color-slate-gray: #727272;
+  --color-stone-gray: #616161;
+  --color-silver-mist: #949494;
+  --color-frost-gray: #e0d6ce;
+  --color-pale-sienna: #fcddcc;
+  --color-powder-pink: #febec2;
 
-  --color-chat-bg: var(--color-paper-canvas);
-  --color-chat-primary: var(--color-ink);
-  --color-chat-primary-light: var(--color-atmosphere-wash);
-  --color-chat-bubble-user: var(--color-off-black);
-  --color-chat-bubble-agent: var(--color-paper-canvas);
-  --color-chat-bubble-agent-border: rgba(36, 36, 36, 0.12);
+  /* Semantic */
+  --color-ink: var(--color-ink-black);
+  --color-paper-canvas: var(--color-canvas-warm);
+  --color-off-black: var(--color-ink-black);
+  --color-pale-stone: var(--color-slate-gray);
+  --color-whisper-gray: var(--color-stone-gray);
+  --color-atmosphere-wash: var(--color-brand-light);
+  --color-subtle-link: var(--color-brand-dark);
+  --color-faint-text: var(--color-silver-mist);
+  --color-surface: var(--color-canvas-warm);
+  --color-card: var(--color-paper-white);
+  --color-muted: var(--color-slate-gray);
+  --color-border: var(--color-cloud-canvas);
+  --color-accent: var(--color-brand);
+  --color-marketing-orange: var(--color-brand);
+  --color-segment-track: var(--color-brand-light);
+
+  --color-chat-bg: var(--color-paper-white);
+  --color-chat-primary: var(--color-ink-black);
+  --color-chat-primary-light: var(--color-brand);
+  --color-chat-bubble-user: var(--color-brand);
+  --color-chat-bubble-agent: var(--color-paper-white);
+  --color-chat-bubble-agent-border: rgba(255, 77, 0, 0.12);
 
   /* Typography */
-  --font-ui: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-display: 'Noto Serif', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-  --font-body: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+  --font-suisse: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, sans-serif;
+  --font-geistmono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --font-ui: var(--font-suisse);
+  --font-body: var(--font-suisse);
+  --font-display: var(--font-suisse);
+  --font-mono: var(--font-geistmono);
 
-  --text-caption: 12px;
+  --text-caption: 11px;
+  --leading-caption: 1.4;
+  --tracking-caption: 0.1px;
   --text-body-sm: 14px;
-  --text-body: 16px;
+  --leading-body-sm: 1.54;
+  --text-body: 14px;
+  --leading-body: 1.54;
+  --text-body-lg: 16px;
+  --leading-body-lg: 1.6;
   --text-subheading: 20px;
-  --text-heading-sm: 24px;
-  --text-heading: 28px;
+  --leading-subheading: 1.43;
+  --text-heading-sm: 22px;
+  --leading-heading-sm: 1.33;
+  --text-heading: 24px;
+  --leading-heading: 1.33;
+  --text-heading-lg: 40px;
+  --leading-heading-lg: 1.1;
 
-  /* Spacing & shape */
+  /* Spacing */
+  --spacing-unit: 4px;
+  --section-gap: 24px;
+  --card-padding: 16px;
+  --element-gap: 12px;
+  --page-max-width: 1200px;
+
+  /* Border radius */
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-2xl-2: 20px;
+  --radius-full: 999px;
   --radius-bubble: 16px;
-  --radius-card: 40px;
-  --radius-pill: 100px;
-  --radius-button: 100px;
-  --radius-tag: 2000px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+  --radius-button: 8px;
+  --radius-tag: 999px;
+  --radius-input: 8px;
 
-  --shadow-soft: rgba(0, 0, 0, 0.1) 0px 0px 10px 0px;
-  --shadow-input: rgba(0, 0, 0, 0.1) 0px 0px 10px 0px;
-  --shadow-md: rgba(0, 0, 0, 0.1) 0px 0px 10px 0px;
+  /* Shadows — warm orange tint */
+  --shadow-brand: 0 4px 14px rgba(255, 77, 0, 0.18);
+  --shadow-xl: rgba(255, 77, 0, 0.04) 0px 40px 48px -20px, rgba(0, 0, 0, 0.03) 0px 32px 32px -20px,
+    rgba(0, 0, 0, 0.03) 0px 16px 24px -12px, rgba(0, 0, 0, 0.04) 0px 0px 0px 1px;
+  --shadow-xl-2: rgba(255, 77, 0, 0.06) 0px 24px 32px -12px, rgba(0, 0, 0, 0.03) 0px 16px 24px -8px,
+    rgba(0, 0, 0, 0.03) 0px 8px 16px -4px, rgba(0, 0, 0, 0.04) 0px 0px 0px 1px;
+  --shadow-xl-3: rgba(255, 77, 0, 0.05) 0px 0px 44px 0px, rgba(0, 0, 0, 0.04) 0px 88px 56px -20px,
+    rgba(0, 0, 0, 0.03) 0px 32px 32px -20px, rgba(0, 0, 0, 0.04) 0px 16px 24px -12px,
+    rgba(255, 77, 0, 0.08) 0px 0px 0px 1px;
+  --shadow-subtle: var(--color-brand-light) 0px 0px 0px 6px;
+  --shadow-soft: var(--shadow-xl-2);
+  --shadow-input: var(--shadow-subtle);
+  --shadow-md: var(--shadow-xl-3);
+  --shadow-card: var(--shadow-xl);
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-
-  /* 网页端居中展示为手机宽度 */
   --mobile-app-width: 390px;
-  --desktop-canvas: #e8ecf0;
+  --desktop-canvas: var(--color-canvas-warm);
+
+  --surface-canvas: var(--color-canvas-warm);
+  --surface-card-base: var(--color-paper-white);
+  --surface-elevated-card: #ffffff;
 }

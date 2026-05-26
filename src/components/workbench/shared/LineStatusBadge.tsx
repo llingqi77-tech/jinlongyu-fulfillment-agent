@@ -1,37 +1,43 @@
-import type { ProcurementMode, SalesUrgency, ShortageLineStatus, ShortagePOLine } from '../../../types/shortage'
+import type {
+  FulfillmentMethod,
+  ProcurementMode,
+  ShortageLineStatus,
+  ShortagePOLine,
+} from '../../../types/shortage'
 import {
+  FULFILLMENT_METHOD_LABEL,
   getSalesCommunicationLabel,
   LINE_STATUS_LABEL,
   PROCUREMENT_LINE_STATUS_LABEL,
   PROCUREMENT_MODE_LABEL,
-  SALES_URGENCY_LABEL,
 } from '../../../constants/shortageLabels'
 import { useShortageStore } from '../../../store/shortageStore'
 import { getProcurementDisplayStatus } from '../../../utils/shortageAggregations'
 
 export function LineStatusBadge({ status }: { status: ShortageLineStatus }) {
   const colors: Record<ShortageLineStatus, string> = {
-    new: 'bg-segment-track text-muted',
-    await_sales: 'bg-atmosphere-wash text-ink',
-    await_procurement: 'bg-atmosphere-wash text-ink',
-    ready_for_po: 'bg-off-black text-paper-canvas',
-    completed: 'bg-pale-stone/20 text-pale-stone',
-    cancelled: 'bg-segment-track text-muted',
+    new: 'bg-cloud-canvas text-muted',
+    await_ops: 'bg-cloud-canvas text-ink',
+    await_sales: 'bg-fire-orange/10 text-fire-orange',
+    await_procurement: 'bg-brand-muted text-brand-dark',
+    await_logistics: 'bg-paper-white text-ink border border-tech',
+    ready_for_po: 'bg-fire-orange text-white',
+    completed: 'bg-cloud-canvas text-muted',
+    cancelled: 'bg-cloud-canvas text-muted',
   }
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${colors[status]}`}>
+    <span className={`inline-block rounded-full px-2 py-0.5 text-caption font-medium ${colors[status]}`}>
       {LINE_STATUS_LABEL[status]}
     </span>
   )
 }
 
-/** 销售缺货沟通总览：登记前待确认，登记后已完成 */
-export function SalesCommunicationBadge({ urgency }: { urgency: SalesUrgency }) {
-  const label = getSalesCommunicationLabel(urgency)
+export function SalesCommunicationBadge({ method }: { method: FulfillmentMethod }) {
+  const label = getSalesCommunicationLabel(method)
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-        label === '待确认' ? 'bg-atmosphere-wash text-muted' : 'bg-pale-stone/30 text-muted'
+      className={`inline-block rounded-full px-2 py-0.5 text-caption font-medium ${
+        label === '待确认' ? 'bg-fire-orange/10 text-fire-orange' : 'bg-cloud-canvas text-muted'
       }`}
     >
       {label}
@@ -39,28 +45,34 @@ export function SalesCommunicationBadge({ urgency }: { urgency: SalesUrgency }) 
   )
 }
 
-export function SalesUrgencyBadge({ urgency }: { urgency: SalesUrgency }) {
+export function FulfillmentMethodBadge({ method }: { method: FulfillmentMethod }) {
   const role = useShortageStore((s) => s.role)
-  const urgent = urgency === 'must_on_time'
+  const urgent = method === 'must_on_time'
   const label =
-    urgency === 'pending' && role === 'sales' ? '待确认' : SALES_URGENCY_LABEL[urgency]
+    method === 'pending' && role === 'sales' ? '待确认' : FULFILLMENT_METHOD_LABEL[method]
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-        urgent ? 'bg-off-black text-paper-canvas' : urgency === 'normal' ? 'bg-segment-track text-ink' : 'bg-atmosphere-wash text-muted'
+      className={`inline-block rounded-full px-2 py-0.5 text-caption font-medium ${
+        urgent
+          ? 'bg-fire-orange text-white'
+          : method === 'pending'
+            ? 'bg-fire-orange/10 text-fire-orange'
+            : 'bg-paper-white text-ink border border-tech'
       }`}
     >
       {label}
     </span>
   )
 }
+
+export const SalesUrgencyBadge = FulfillmentMethodBadge
 
 export function ProcurementLineStatusBadge({ line }: { line: ShortagePOLine }) {
   const key = getProcurementDisplayStatus(line)
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
-        key === 'done' ? 'bg-pale-stone/30 text-muted' : 'bg-atmosphere-wash text-ink'
+      className={`inline-block rounded-full px-2 py-0.5 text-caption font-medium ${
+        key === 'done' ? 'bg-cloud-canvas text-muted' : 'bg-brand-muted text-brand-dark'
       }`}
     >
       {PROCUREMENT_LINE_STATUS_LABEL[key]}
@@ -70,7 +82,7 @@ export function ProcurementLineStatusBadge({ line }: { line: ShortagePOLine }) {
 
 export function ProcurementModeBadge({ mode }: { mode: ProcurementMode }) {
   return (
-    <span className="inline-block rounded-full bg-segment-track px-2 py-0.5 text-[10px] font-medium text-ink">
+    <span className="inline-block rounded-full border border-tech bg-paper-white px-2 py-0.5 text-caption font-medium text-ink">
       {PROCUREMENT_MODE_LABEL[mode]}
     </span>
   )

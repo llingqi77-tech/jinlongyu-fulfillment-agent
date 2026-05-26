@@ -9,10 +9,10 @@ export function WorkbenchModal({ children }: { children: ReactNode }) {
   if (!open) return null
 
   return (
-    <div className="workbench-overlay fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-      <div className="workbench-modal relative flex h-[90vh] w-[92vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-paper-canvas shadow-md">
+    <div className="workbench-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="workbench-modal relative flex h-[90vh] w-[92vw] max-w-[1400px] flex-col overflow-hidden">
         {toast && (
-          <div className="absolute left-1/2 top-4 z-[60] -translate-x-1/2 rounded-full bg-off-black px-4 py-2 text-xs font-medium text-paper-canvas shadow-soft">
+          <div className="absolute left-1/2 top-6 z-[60] -translate-x-1/2 rounded-full bg-fire-orange px-5 py-2 text-caption font-medium text-white shadow-xl-2">
             {toast}
           </div>
         )}

@@ -155,14 +155,9 @@ export function ProcurementSkuTask({ lineId }: { lineId: string }) {
           )}
 
           {oaStatus === 'none' && (
-            <>
-              <p className="text-caption text-muted">
-                当期到货（加急）须先提交 OA 审批，通过后方可生成采购订单
-              </p>
-              <button type="button" className="btn-primary" onClick={() => submitOaApproval(lineId)}>
-                提交 OA 审批
-              </button>
-            </>
+            <button type="button" className="btn-primary" onClick={() => submitOaApproval(lineId)}>
+              提交 OA 审批
+            </button>
           )}
 
           {oaStatus === 'pending' && (

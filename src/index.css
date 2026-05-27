@@ -1,4 +1,5 @@
 @import './styles/tokens.css';
+@import './styles/mobile.css';
 
 @tailwind base;
 @tailwind components;
@@ -148,12 +149,6 @@ body {
   color: #ffffff;
   font-weight: 600;
   box-shadow: var(--shadow-xl-2);
-}
-
-.agent-advice-panel {
-  background: var(--color-brand-light);
-  border-left: 3px solid var(--color-brand);
-  box-shadow: var(--shadow-subtle);
 }
 
 .border-tech {

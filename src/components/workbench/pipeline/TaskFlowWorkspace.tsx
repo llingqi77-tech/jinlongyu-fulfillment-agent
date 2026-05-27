@@ -5,8 +5,10 @@ import { getTasksForFlowKind } from '../../../utils/shortageAggregations'
 import { renderTaskForm } from './renderTaskForm'
 import { OverlayBottomComposer } from './OverlayBottomComposer'
 import { WorkbenchRoleDock } from './WorkbenchRoleDock'
+import { MobileTaskFlowWorkspace } from '../mobile/MobileTaskFlowWorkspace'
+import { useIsMobile } from '../../../hooks/useIsMobile'
 
-export function TaskFlowWorkspace({ kind }: { kind: TaskFlowKind }) {
+function DesktopTaskFlowWorkspace({ kind }: { kind: TaskFlowKind }) {
   const role = useShortageStore((s) => s.role)
   const orders = useShortageStore((s) => s.orders)
   const selectedTaskLineId = useShortageStore((s) => s.selectedTaskLineId)
@@ -52,7 +54,6 @@ export function TaskFlowWorkspace({ kind }: { kind: TaskFlowKind }) {
                       }`}
                     >
                       <span className="font-medium">{task.title}</span>
-                      <span className="mt-1 block text-caption text-muted">{task.sub}</span>
                     </button>
                   </li>
                 ))}
@@ -75,4 +76,12 @@ export function TaskFlowWorkspace({ kind }: { kind: TaskFlowKind }) {
       <OverlayBottomComposer placeholder="输入处理意向" />
     </div>
   )
+}
+
+export function TaskFlowWorkspace({ kind }: { kind: TaskFlowKind }) {
+  const isMobile = useIsMobile()
+  if (isMobile) {
+    return <MobileTaskFlowWorkspace kind={kind} />
+  }
+  return <DesktopTaskFlowWorkspace kind={kind} />
 }

@@ -15,35 +15,35 @@ function chartColor(method: FulfillmentMethod): string {
   return '#94a3b8'
 }
 
-export function PipelineFulfillmentSummaryCard() {
+/** 手机端精简：指标一行 + 色条 */
+export function MobilePipelineFulfillmentSummaryCard() {
   const orders = useShortageStore((s) => s.orders)
   const s = getFulfillmentDoneSummary(orders)
 
   return (
-    <div className="pipeline-summary-card pipeline-summary-card--fashion">
+    <div className="pipeline-summary-card pipeline-summary-card--fashion mobile-summary-card--done">
       <div className="summary-card__head">
         <h4 className="summary-card__title">履约任务完成</h4>
         <span className="summary-card__tag">本周</span>
       </div>
 
-      <div className="summary-card__heroes summary-card__heroes--triple">
-        <div className="summary-hero summary-hero--sm summary-hero--accent">
-          <span className="summary-hero__value">{s.hotelCount}</span>
-          <span className="summary-hero__label">酒店</span>
-        </div>
-        <div className="summary-hero summary-hero--sm">
-          <span className="summary-hero__value">{s.orderCount}</span>
-          <span className="summary-hero__label">订单</span>
-        </div>
-        <div className="summary-hero summary-hero--sm">
-          <span className="summary-hero__value">{s.completedLineCount}</span>
-          <span className="summary-hero__label">品项</span>
-        </div>
+      <div className="mobile-summary-metrics">
+        <span>
+          <em>{s.hotelCount}</em> 酒店
+        </span>
+        <span>
+          <em>{s.orderCount}</em> 订单
+        </span>
+        <span>
+          <em>{s.completedLineCount}</em> 品项
+        </span>
       </div>
 
       {s.completedLineCount > 0 ? (
-        <div className="summary-mix-chart">
-          <p className="summary-card__insight-title">履约方式分布</p>
+        <div className="summary-mix-chart mobile-summary-mix-chart--compact">
+          <p className="summary-card__insight-title mobile-summary-mix-chart__title">
+            履约方式分布
+          </p>
           <div className="summary-mix-chart__bar">
             {s.methodMix
               .filter((item) => item.count > 0)
@@ -51,7 +51,6 @@ export function PipelineFulfillmentSummaryCard() {
                 <div
                   key={item.method}
                   className="summary-mix-chart__segment"
-                  data-method={item.method}
                   style={{
                     width: `${item.percent}%`,
                     backgroundColor: chartColor(item.method),
@@ -60,7 +59,7 @@ export function PipelineFulfillmentSummaryCard() {
                 />
               ))}
           </div>
-          <ul className="summary-mix-chart__legend">
+          <ul className="summary-mix-chart__legend mobile-summary-mix-chart__legend">
             {s.methodMix.map((item) => (
               <li key={item.method}>
                 <span

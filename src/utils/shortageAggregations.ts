@@ -716,6 +716,11 @@ export function getOpsCreateSummary(orders: ShortagePO[], refDate = new Date()):
   }
 }
 
+/** 履约完成分布图例：按品项（缺货行）计数 */
+export function formatSkuMixCount(count: number): string {
+  return `${count}个品`
+}
+
 export function getFulfillmentDoneSummary(
   orders: ShortagePO[],
   refDate = new Date()

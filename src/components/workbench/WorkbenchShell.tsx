@@ -1,5 +1,7 @@
 import { WorkbenchContent } from './WorkbenchContent'
 import { WorkbenchOverlay } from './pipeline/WorkbenchOverlay'
+import { MobileWorkbenchShell } from './mobile/MobileWorkbenchShell'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { useShortageStore } from '../../store/shortageStore'
 import type { WorkbenchRole } from '../../types/shortage'
 
@@ -9,7 +11,7 @@ const ROLES: { id: WorkbenchRole; label: string }[] = [
   { id: 'procurement', label: '采购' },
 ]
 
-export function WorkbenchShell() {
+function DesktopWorkbenchShell() {
   const role = useShortageStore((s) => s.role)
   const setRole = useShortageStore((s) => s.setRole)
   const closeWorkbench = useShortageStore((s) => s.closeWorkbench)
@@ -65,4 +67,12 @@ export function WorkbenchShell() {
       </main>
     </>
   )
+}
+
+export function WorkbenchShell() {
+  const isMobile = useIsMobile()
+  if (isMobile) {
+    return <MobileWorkbenchShell />
+  }
+  return <DesktopWorkbenchShell />
 }

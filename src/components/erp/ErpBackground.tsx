@@ -19,7 +19,7 @@ export function ErpBackground() {
           <table className="w-full text-left text-body text-ink">
             <thead className="erp-table-head border-b border-tech">
               <tr>
-                <th className="px-4 py-3 font-mono text-caption font-medium uppercase tracking-wide text-muted">
+                <th className="px-4 py-3 font-data text-caption font-medium uppercase tracking-wide text-muted">
                   订单号
                 </th>
                 <th className="px-4 py-3 text-caption font-medium uppercase tracking-wide text-muted">
@@ -39,7 +39,7 @@ export function ErpBackground() {
                   key={id}
                   className="border-b border-tech transition-colors last:border-0 hover:bg-brand-light/30"
                 >
-                  <td className="px-4 py-3 font-mono text-caption text-brand-dark">{id}</td>
+                  <td className="px-4 py-3 font-data text-caption text-brand-dark">{id}</td>
                   <td className="px-4 py-3">酒店客户 {i + 1}</td>
                   <td className="px-4 py-3 font-medium">¥{(12000 + i * 3400).toLocaleString()}</td>
                   <td className="px-4 py-3">

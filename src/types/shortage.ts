@@ -1,10 +1,12 @@
 export type WorkbenchRole = 'ops' | 'sales' | 'procurement'
 
 export type PipelineStageFilter =
-  | 'ops_advice'
+  | 'procurement_advice'
   | 'sales_method'
   | 'procurement'
   | 'fulfillment_done'
+
+export type PipelineStageKey = 'ops_create' | PipelineStageFilter
 
 export type FulfillmentMethod =
   | 'pending'
@@ -24,6 +26,9 @@ export type SupplierStockStatus = 'unknown' | 'yes' | 'no'
 export type SalesUrgency = 'must_on_time' | 'normal' | 'pending'
 
 export type ProcurementMode = 'urgent' | 'normal' | 'pending'
+
+/** 当期到货（加急）寻源：供应商选定后须先走 OA 审批 */
+export type OaApprovalStatus = 'none' | 'pending' | 'approved' | 'rejected'
 
 export type ShortageLineStatus =
   | 'new'
@@ -54,7 +59,10 @@ export interface ShortagePOLine {
   isShortage: boolean
   availableStock: number
   gap: number
+  /** 采购缺货履约建议（阶段二确认后流转销售） */
   opsAdvice: string
+  /** 有在途订单时后台可判为正常补货 */
+  hasInTransitOrder?: boolean
   fulfillmentMethod: FulfillmentMethod
   salesNote: string
   salesOutboundType: SalesOutboundType
@@ -69,6 +77,9 @@ export interface ShortagePOLine {
   amount: number
   procurementDraftNo: string
   procurementConfirmed: boolean
+  /** OA 审批（must_on_time 寻源必选） */
+  oaApprovalStatus: OaApprovalStatus
+  oaRequestNo: string
   /** @deprecated */
   salesUrgency: SalesUrgency
   eta: string
@@ -171,7 +182,7 @@ export interface PipelineStageStats {
 }
 
 export interface PipelineStats {
-  opsAdvice: PipelineStageStats
+  procurementAdvice: PipelineStageStats
   salesMethod: PipelineStageStats
   procurement: PipelineStageStats
   fulfillment: PipelineStageStats
@@ -180,9 +191,9 @@ export interface PipelineStats {
 export type PipelineChevronTone = 'warm' | 'green' | 'blue'
 
 export interface PipelineChevronStage {
-  key: string
+  key: PipelineStageKey
   title: string
-  /** 任务页副标题（默认同 title） */
+  /** 任务页副标题 */
   taskPageTitle?: string
   tone: PipelineChevronTone
   row1Value: number
@@ -212,5 +223,33 @@ export interface RoleTaskItem {
   sku: string
   title: string
   sub: string
-  stage: PipelineStageFilter
+  stage: PipelineStageKey
+}
+
+export type TaskFlowKind = 'sales_method' | 'procurement_advice' | 'procurement'
+
+/** 覆盖大盘的全屏层：运营对话或各角色任务流 */
+export type WorkbenchOverlayView = 'ops_chat' | TaskFlowKind
+
+export interface MethodMixItem {
+  method: FulfillmentMethod
+  label: string
+  count: number
+  percent: number
+}
+
+export interface OpsCreateSummary {
+  poSynced: number
+  poParsed: number
+  shortageLineCount: number
+  skuCount: number
+  hotelCount: number
+  totalGapQty: number
+}
+
+export interface FulfillmentDoneSummary {
+  hotelCount: number
+  orderCount: number
+  completedLineCount: number
+  methodMix: MethodMixItem[]
 }

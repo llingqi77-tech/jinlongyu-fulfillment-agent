@@ -16,7 +16,7 @@ export function GeneratePoConfirm() {
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl border border-tech bg-white p-6 shadow-elevated">
         <h3 className="text-heading-sm font-medium tracking-tight text-ink">确认采购订单</h3>
-        <p className="mt-1 font-mono text-caption text-muted">草稿 {ctx.procurementDraftNo}</p>
+        <p className="mt-1 font-data text-caption text-muted">草稿 {ctx.procurementDraftNo}</p>
         <dl className="mt-6 space-y-3 text-body-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">品名</dt>
@@ -36,7 +36,7 @@ export function GeneratePoConfirm() {
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">金额</dt>
-            <dd className="font-mono font-semibold text-fire-orange">¥{ctx.amount.toLocaleString()}</dd>
+            <dd className="font-data font-semibold text-fire-orange">¥{ctx.amount.toLocaleString()}</dd>
           </div>
         </dl>
         <div className="mt-8 flex justify-end gap-3">

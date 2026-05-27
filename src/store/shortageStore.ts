@@ -5,13 +5,23 @@ import type {
   FulfillmentMethod,
   PipelineStageFilter,
   ShortagePO,
+  TaskFlowKind,
+  WorkbenchOverlayView,
   WorkbenchRole,
 } from '../types/shortage'
+import { getTasksForFlowKind } from '../utils/shortageAggregations'
 import {
+  applyBackendLogisticsRouting,
   ensureLineSuppliers,
   recomputeLineStatus,
 } from '../utils/shortageAggregations'
 import { syncLegacySalesUrgency } from '../utils/shortageLineDefaults'
+import {
+  isLogisticsFulfillment,
+  lineNeedsProcurementAdvice,
+  showsSalesNote,
+  showsSupplierProcurement,
+} from '../utils/fulfillmentMethodRules'
 import type { SupplierStockStatus } from '../types/shortage'
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -39,6 +49,7 @@ interface ShortageState {
   pipelineFilter: PipelineStageFilter | null
   toast: string | null
   signoffTimerId: ReturnType<typeof setInterval> | null
+  overlayView: WorkbenchOverlayView | null
 
   openWorkbench: () => void
   closeWorkbench: () => void
@@ -51,6 +62,8 @@ interface ShortageState {
   setSupplierStock: (lineId: string, supplierId: string, hasStock: SupplierStockStatus) => void
   selectSupplier: (lineId: string, supplierId: string) => void
   applyCustomSupplier: (lineId: string, name: string, amount: number, supplierId?: string) => void
+  submitOaApproval: (lineId: string) => void
+  receiveOaApproval: (lineId: string, status: 'approved' | 'rejected') => void
   generateProcurementDraft: (lineId: string) => void
   openGeneratePo: (lineId: string) => void
   closeGeneratePo: () => void
@@ -60,6 +73,11 @@ interface ShortageState {
   stopSignoffMock: () => void
   pushActivity: (event: Omit<ActivityEvent, 'id' | 'timestamp'>) => void
   setToast: (msg: string | null) => void
+  openOverlay: (view: WorkbenchOverlayView) => void
+  closeOverlay: () => void
+  openTaskFlow: (kind: TaskFlowKind) => void
+  closeTaskFlow: () => void
+  checkTaskFlowComplete: () => void
 }
 
 function patchLine(
@@ -92,17 +110,28 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   pipelineFilter: null,
   toast: null,
   signoffTimerId: null,
+  overlayView: null,
 
   openWorkbench: () => {
-    const { orders, signoffTimerId } = get()
-    if (orders.length === 0) get().loadTodayShortages()
+    const { signoffTimerId } = get()
+    get().loadTodayShortages()
     if (!signoffTimerId) get().startSignoffMock()
-    set({ workbenchOpen: true })
+    set({
+      workbenchOpen: true,
+      selectedTaskLineId: null,
+      pipelineFilter: null,
+      overlayView: null,
+    })
   },
 
   closeWorkbench: () => {
     get().stopSignoffMock()
-    set({ workbenchOpen: false, generatePoLineId: null, selectedTaskLineId: null })
+    set({
+      workbenchOpen: false,
+      generatePoLineId: null,
+      selectedTaskLineId: null,
+      overlayView: null,
+    })
   },
 
   setRole: (role) =>
@@ -110,6 +139,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       role,
       selectedTaskLineId: null,
       pipelineFilter: null,
+      overlayView: null,
     }),
 
   setPipelineFilter: (filter) =>
@@ -121,7 +151,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   selectTaskLine: (lineId) => set({ selectedTaskLineId: lineId }),
 
   loadTodayShortages: () => {
-    const orders = cloneOrders(MOCK_SHORTAGE_ORDERS)
+    const orders = applyBackendLogisticsRouting(cloneOrders(MOCK_SHORTAGE_ORDERS))
     set({
       orders,
       activityEvents: [
@@ -130,22 +160,25 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
           timestamp: nowTime(),
           actor: '系统',
           type: 'sync',
-          content: `今日缺货已同步：${orders.length} 张待转单，已推送运营/销售/采购`,
+          content: `今日缺货已同步：${orders.length} 张待转单；直发/正常补货已算路，采购/销售待办已推送`,
         },
       ],
     })
   },
 
   setOpsAdvice: (lineId, advice) => {
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    if (!line || !lineNeedsProcurementAdvice(line)) return
     const orders = patchLine(get().orders, lineId, { opsAdvice: advice.trim() })
     set({ orders })
     get().pushActivity({
-      actor: '运营',
-      type: 'ops',
-      content: '已确认 Agent 履约建议并流转销售',
+      actor: '采购',
+      type: 'procurement',
+      content: '已确认缺货履约建议并流转销售沟通',
       ref: { poId: get().orders.find((o) => o.lines.some((l) => l.id === lineId))?.id },
     })
-    get().setToast('履约建议已确认，已流转销售')
+    get().setToast('缺货履约建议已确认，已流转销售')
+    get().checkTaskFlowComplete()
   },
 
   setFulfillmentMethod: (lineId, method, note = '') => {
@@ -156,11 +189,29 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
 
     const patch: Partial<ShortagePO['lines'][0]> = {
       fulfillmentMethod: method,
-      salesNote: note,
+      salesNote: showsSalesNote(method) ? note : '',
       salesUrgency: syncLegacySalesUrgency(method),
     }
 
-    if (method === 'direct_ship' || method === 'normal_replenishment' || method === 'substitute') {
+    if (isLogisticsFulfillment(method)) {
+      patch.opsAdvice = ''
+      patch.salesNote = ''
+      patch.supplierName = ''
+      patch.selectedSupplierId = ''
+      patch.amount = 0
+      patch.procurementDraftNo = ''
+      patch.procurementConfirmed = false
+      patch.recommendedSuppliers = []
+    } else if (!showsSupplierProcurement(method)) {
+      patch.supplierName = ''
+      patch.selectedSupplierId = ''
+      patch.amount = 0
+      patch.procurementDraftNo = ''
+      patch.procurementConfirmed = false
+      patch.recommendedSuppliers = []
+    }
+
+    if (method === 'direct_ship' || method === 'normal_replenishment') {
       patch.salesOutboundType = 'order_direct'
       patch.salesOutboundNo = line.salesOutboundNo || createSalesOutboundNo('order_direct')
       patch.expectedFulfillQty = line.gap
@@ -192,6 +243,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
         ? '已转采购寻源'
         : `已生成${patch.salesOutboundType === 'backorder' ? ' Backorder ' : ' '}销售出库订单`
     )
+    get().checkTaskFlowComplete()
   },
 
   setSupplierStock: (lineId, supplierId, hasStock) => {
@@ -226,13 +278,98 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       selectedSupplierId: supplierId,
       supplierName: name.trim(),
       amount,
-      procurementMode: 'normal',
+      procurementMode: 'urgent',
+      oaApprovalStatus: 'none',
+      oaRequestNo: '',
+      procurementDraftNo: '',
+      procurementConfirmed: false,
     })
-    set({ orders })
+    set({ orders, generatePoLineId: null })
     get().setToast(supplierId === 'custom' ? '已录入自定义供应商' : '已选用供应商')
   },
 
+  submitOaApproval: (lineId) => {
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    if (!line?.supplierName || line.amount <= 0) {
+      get().setToast('请先选用供应商')
+      return
+    }
+    if (line.fulfillmentMethod !== 'must_on_time') {
+      get().generateProcurementDraft(lineId)
+      return
+    }
+    const oaRequestNo = `OA-${Date.now().toString().slice(-8)}`
+    const orders = patchLine(get().orders, lineId, {
+      oaApprovalStatus: 'pending',
+      oaRequestNo,
+      procurementMode: 'urgent',
+      procurementDraftNo: '',
+      procurementConfirmed: false,
+    })
+    set({ orders, generatePoLineId: null })
+    get().pushActivity({
+      actor: '采购',
+      type: 'procurement',
+      content: `已提交 OA 审批 ${oaRequestNo}（${line.supplierName} · ¥${line.amount.toLocaleString()}）`,
+    })
+    get().pushActivity({
+      actor: 'Agent',
+      type: 'system',
+      content: `寻源单已推送 OA 系统，单号 ${oaRequestNo}，等待审批结果回传…`,
+    })
+    get().setToast('已提交 OA 审批')
+
+    window.setTimeout(() => {
+      const current = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+      if (current?.oaApprovalStatus === 'pending') {
+        get().receiveOaApproval(lineId, 'approved')
+      }
+    }, 2800)
+  },
+
+  receiveOaApproval: (lineId, status) => {
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    if (!line || line.oaApprovalStatus !== 'pending') return
+
+    if (status === 'approved') {
+      const orders = patchLine(get().orders, lineId, { oaApprovalStatus: 'approved' })
+      set({ orders })
+      get().pushActivity({
+        actor: 'OA系统',
+        type: 'procurement',
+        content: `审批单 ${line.oaRequestNo} 回传状态：Approve，可生成采购订单`,
+      })
+      get().pushActivity({
+        actor: 'Agent',
+        type: 'procurement',
+        content: `OA 已通过，请为 ${line.productName} 生成采购订单并下发 ERP`,
+      })
+      get().setToast('OA 审批已通过')
+      return
+    }
+
+    const orders = patchLine(get().orders, lineId, {
+      oaApprovalStatus: 'rejected',
+      procurementDraftNo: '',
+    })
+    set({ orders, generatePoLineId: null })
+    get().pushActivity({
+      actor: 'OA系统',
+      type: 'procurement',
+      content: `审批单 ${line.oaRequestNo} 回传状态：Reject`,
+    })
+    get().setToast('OA 审批已驳回，请调整供应商后重新提交')
+  },
+
   generateProcurementDraft: (lineId) => {
+    const line = get().orders.flatMap((o) => o.lines).find((l) => l.id === lineId)
+    if (
+      line?.fulfillmentMethod === 'must_on_time' &&
+      line.oaApprovalStatus !== 'approved'
+    ) {
+      get().setToast('当期到货须先完成 OA 审批')
+      return
+    }
     const draftNo = `DRAFT-${Date.now().toString().slice(-5)}`
     const orders = patchLine(get().orders, lineId, { procurementDraftNo: draftNo })
     set({ orders, generatePoLineId: lineId })
@@ -262,6 +399,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       content: `采购订单 ${poNumber} 已写入金龙鱼采购系统`,
     })
     get().setToast(`采购订单 ${poNumber} 已确认下发`)
+    get().checkTaskFlowComplete()
   },
 
   applySignoff: (lineId, qty) => {
@@ -316,5 +454,37 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   setToast: (msg) => {
     set({ toast: msg })
     if (msg) setTimeout(() => set({ toast: null }), 2800)
+  },
+
+  openOverlay: (view) => {
+    if (view !== 'ops_chat') {
+      const tasks = getTasksForFlowKind(get().orders, view)
+      if (tasks.length === 0) {
+        get().setToast('当前无待办任务')
+        return
+      }
+      set({
+        overlayView: view,
+        selectedTaskLineId: tasks[0].lineId,
+      })
+      return
+    }
+    set({ overlayView: view, selectedTaskLineId: null })
+  },
+
+  closeOverlay: () => set({ overlayView: null, selectedTaskLineId: null }),
+
+  openTaskFlow: (kind) => get().openOverlay(kind),
+
+  closeTaskFlow: () => get().closeOverlay(),
+
+  checkTaskFlowComplete: () => {
+    const { overlayView, orders } = get()
+    if (!overlayView || overlayView === 'ops_chat') return
+    const remaining = getTasksForFlowKind(orders, overlayView)
+    if (remaining.length === 0) {
+      get().setToast('全部待办已完成')
+      get().closeOverlay()
+    }
   },
 }))

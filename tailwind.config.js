@@ -43,8 +43,10 @@ export default {
         ui: 'var(--font-ui)',
         body: 'var(--font-body)',
         display: 'var(--font-display)',
-        sans: 'var(--font-suisse)',
-        mono: 'var(--font-geistmono)',
+        sans: 'var(--font-sans)',
+        stat: ['var(--font-stat)', { fontVariantNumeric: 'tabular-nums' }],
+        data: ['var(--font-ui)', { fontVariantNumeric: 'tabular-nums' }],
+        mono: 'var(--font-mono)',
       },
       fontSize: {
         caption: ['var(--text-caption)', { lineHeight: 'var(--leading-caption)' }],

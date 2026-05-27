@@ -1,6 +1,10 @@
 import type {
+  FulfillmentDoneSummary,
+  FulfillmentMethod,
+  OpsCreateSummary,
   PipelineStageFilter,
   PipelineStats,
+  PipelineStageStats,
   ProcurementSkuGroup,
   RoleTaskItem,
   SalesHotelGroup,
@@ -8,8 +12,16 @@ import type {
   ShortagePOLine,
   FulfillmentKpis,
   PipelineChevronStage,
+  PipelineStageKey,
+  TaskFlowKind,
   WorkbenchRole,
 } from '../types/shortage'
+import { FULFILLMENT_METHOD_LABEL } from '../constants/shortageLabels'
+import {
+  isLogisticsFulfillment,
+  lineNeedsProcurementAdvice,
+  resolveBackendLogisticsMethod,
+} from './fulfillmentMethodRules'
 import { getRecommendedSuppliers } from './supplierRecommendations'
 
 export function getShortageLines(orders: ShortagePO[]): Array<ShortagePOLine & { po: ShortagePO }> {
@@ -18,10 +30,73 @@ export function getShortageLines(orders: ShortagePO[]): Array<ShortagePOLine & {
   )
 }
 
+/** 本地日历日 YYYY-MM-DD（避免 toISOString UTC 导致「今日」过滤错位） */
+export function localDateKey(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function addCalendarDays(base: Date, days: number): string {
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate())
+  d.setDate(d.getDate() + days)
+  return localDateKey(d)
+}
+
 export function daysRemaining(requiredDate: string, from = new Date()): number {
-  const end = new Date(requiredDate)
-  const start = new Date(from.toISOString().slice(0, 10))
+  const [y, m, day] = requiredDate.slice(0, 10).split('-').map(Number)
+  const end = new Date(y, m - 1, day)
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate())
   return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+export function toDateKey(date: Date | string): string {
+  if (typeof date === 'string') return date.slice(0, 10)
+  return localDateKey(date)
+}
+
+/** 交货日为当天（当日需完成任务口径） */
+export function isDeliveryToday(requiredDate: string, ref = new Date()): boolean {
+  return toDateKey(requiredDate) === toDateKey(ref)
+}
+
+export function getWeekRange(ref = new Date()): { start: string; end: string } {
+  const anchor = new Date(ref)
+  anchor.setHours(0, 0, 0, 0)
+  const day = anchor.getDay()
+  const mondayOffset = day === 0 ? -6 : 1 - day
+  const weekStart = new Date(anchor)
+  weekStart.setDate(anchor.getDate() + mondayOffset)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  return { start: toDateKey(weekStart), end: toDateKey(weekEnd) }
+}
+
+/** 交货日落在本周一至周日 */
+export function isDeliveryThisWeek(requiredDate: string, ref = new Date()): boolean {
+  const key = toDateKey(requiredDate)
+  const { start, end } = getWeekRange(ref)
+  return key >= start && key <= end
+}
+
+export function formatWeekRangeLabel(ref = new Date()): string {
+  const { start, end } = getWeekRange(ref)
+  const fmt = (iso: string) => {
+    const [, m, d] = iso.split('-')
+    return `${Number(m)}/${Number(d)}`
+  }
+  return `${fmt(start)}–${fmt(end)}`
+}
+
+type ShortageLineWithPo = ShortagePOLine & { po: ShortagePO }
+
+function filterDailyLines(lines: ShortageLineWithPo[], ref = new Date()): ShortageLineWithPo[] {
+  return lines.filter((l) => isDeliveryToday(l.po.requiredDeliveryDate, ref))
+}
+
+function filterWeeklyLines(lines: ShortageLineWithPo[], ref = new Date()): ShortageLineWithPo[] {
+  return lines.filter((l) => isDeliveryThisWeek(l.po.requiredDeliveryDate, ref))
 }
 
 export function uniqueShortageSkus(lines: ShortagePOLine[]): string[] {
@@ -38,9 +113,14 @@ function countSkusByPredicate(lines: ShortagePOLine[], predicate: (sku: string) 
   return skus.filter(predicate).length
 }
 
-export function isOpsAdviceDone(line: ShortagePOLine): boolean {
+export function isProcurementAdviceDone(line: ShortagePOLine): boolean {
+  if (isLogisticsFulfillment(line.fulfillmentMethod)) return true
+  if (!lineNeedsProcurementAdvice(line)) return true
   return !!line.opsAdvice.trim()
 }
+
+/** @deprecated 使用 isProcurementAdviceDone */
+export const isOpsAdviceDone = isProcurementAdviceDone
 
 export function isSalesMethodDone(line: ShortagePOLine): boolean {
   return line.fulfillmentMethod !== 'pending'
@@ -62,11 +142,11 @@ export function isFulfillmentDone(line: ShortagePOLine): boolean {
 export function needsLogistics(line: ShortagePOLine): boolean {
   if (!line.isShortage || line.fulfillmentMethod === 'pending') return false
   if (line.fulfillmentMethod === 'must_on_time' && !line.procurementConfirmed) return false
-  return ['direct_ship', 'normal_replenishment', 'substitute', 'defer'].includes(line.fulfillmentMethod)
+  return ['direct_ship', 'normal_replenishment', 'defer'].includes(line.fulfillmentMethod)
 }
 
 export function isLineVisibleToProcurement(line: ShortagePOLine): boolean {
-  return isProcurementSku(line) && isSalesMethodDone(line) && isOpsAdviceDone(line)
+  return isProcurementSku(line) && isSalesMethodDone(line) && isProcurementAdviceDone(line)
 }
 
 export function lineReadyForPo(line: ShortagePOLine): boolean {
@@ -82,7 +162,7 @@ export function recomputeLineStatus(line: ShortagePOLine): ShortagePOLine {
   if (line.status === 'cancelled') return line
   if (isFulfillmentDone(line)) return { ...line, status: 'completed' }
   if (!line.isShortage) return { ...line, status: 'new' }
-  if (!isOpsAdviceDone(line)) return { ...line, status: 'await_ops' }
+  if (!isProcurementAdviceDone(line)) return { ...line, status: 'await_ops' }
   if (!isSalesMethodDone(line)) return { ...line, status: 'await_sales' }
   if (line.fulfillmentMethod === 'must_on_time' && !isProcurementDone(line)) {
     return { ...line, status: 'await_procurement' }
@@ -102,12 +182,17 @@ export function getPipelineStats(orders: ShortagePO[]): PipelineStats {
   const skus = uniqueShortageSkus(allLines)
   const customerCount = new Set(lines.map((l) => l.po.customerName)).size
 
-  const opsPending = countSkusByPredicate(allLines, (sku) =>
-    !skuStageDone(sku, allLines, isOpsAdviceDone)
+  const adviceScope = allLines.filter(lineNeedsProcurementAdvice)
+  const adviceSkus = uniqueShortageSkus(adviceScope)
+  const procAdvicePending = countSkusByPredicate(adviceScope, (sku) =>
+    !skuStageDone(sku, adviceScope, isProcurementAdviceDone)
   )
-  const salesPending = countSkusByPredicate(allLines, (sku) =>
-    skuStageDone(sku, allLines, isOpsAdviceDone) &&
-    !skuStageDone(sku, allLines, isSalesMethodDone)
+  const salesScope = allLines.filter(
+    (l) => lineNeedsProcurementAdvice(l) && isProcurementAdviceDone(l)
+  )
+  const salesPending = countSkusByPredicate(
+    salesScope,
+    (sku) => !skuStageDone(sku, salesScope, isSalesMethodDone)
   )
   const procLines = allLines.filter(isProcurementSku)
   const procSkus = uniqueShortageSkus(procLines)
@@ -118,18 +203,22 @@ export function getPipelineStats(orders: ShortagePO[]): PipelineStats {
     !skuStageDone(sku, allLines, isFulfillmentDone)
   )
 
-  const stage = (pending: number, done: number): PipelineStats['opsAdvice'] => ({
+  const stage = (pending: number, done: number, total: number): PipelineStageStats => ({
     pending,
     done,
-    totalSkus: skus.length,
+    totalSkus: total,
     customerCount,
   })
 
   return {
-    opsAdvice: stage(opsPending, skus.length - opsPending),
-    salesMethod: stage(salesPending, skus.length - salesPending),
-    procurement: stage(procPending, procSkus.length - procPending),
-    fulfillment: stage(fulfillPending, skus.length - fulfillPending),
+    procurementAdvice: stage(procAdvicePending, adviceSkus.length - procAdvicePending, adviceSkus.length),
+    salesMethod: stage(
+      salesPending,
+      uniqueShortageSkus(salesScope).length - salesPending,
+      uniqueShortageSkus(salesScope).length
+    ),
+    procurement: stage(procPending, procSkus.length - procPending, procSkus.length),
+    fulfillment: stage(fulfillPending, skus.length - fulfillPending, skus.length),
   }
 }
 
@@ -142,29 +231,36 @@ function pipelineProgress(done: number, pending: number) {
   }
 }
 
-/** 履约进度五段展示 */
-export function getPipelineChevronStages(orders: ShortagePO[]): PipelineChevronStage[] {
-  const lines = getShortageLines(orders)
-  const allLines = lines.map((l) => l)
-  const totalSku = uniqueShortageSkus(allLines).length
-  const customerCount = new Set(lines.map((l) => l.po.customerName)).size
+/** 履约进度五段展示（前四段按当日交货任务统计，履约完成按本周统计） */
+export function getPipelineChevronStages(
+  orders: ShortagePO[],
+  refDate = new Date()
+): PipelineChevronStage[] {
+  const allLines = getShortageLines(orders)
+  const dailyLines = filterDailyLines(allLines, refDate)
+  const weeklyLines = filterWeeklyLines(allLines, refDate)
 
-  const opsPending = countSkusByPredicate(allLines, (sku) =>
-    !skuStageDone(sku, allLines, isOpsAdviceDone)
+  const dailySkuCount = uniqueShortageSkus(dailyLines).length
+  const dailyHotelCount = new Set(dailyLines.map((l) => l.po.customerName)).size
+
+  const adviceLines = dailyLines.filter(lineNeedsProcurementAdvice)
+  const adviceSkuCount = uniqueShortageSkus(adviceLines).length
+  const procAdvicePending = countSkusByPredicate(adviceLines, (sku) =>
+    !skuStageDone(sku, adviceLines, isProcurementAdviceDone)
   )
-  const opsDone = totalSku - opsPending
+  const procAdviceDone = adviceSkuCount - procAdvicePending
 
+  const salesLines = dailyLines.filter(
+    (l) => lineNeedsProcurementAdvice(l) && isProcurementAdviceDone(l)
+  )
+  const salesSkuCount = uniqueShortageSkus(salesLines).length
   const salesPending = countSkusByPredicate(
-    allLines,
-    (sku) =>
-      skuStageDone(sku, allLines, isOpsAdviceDone) &&
-      !skuStageDone(sku, allLines, isSalesMethodDone)
+    salesLines,
+    (sku) => !skuStageDone(sku, salesLines, isSalesMethodDone)
   )
-  const salesDone = countSkusByPredicate(allLines, (sku) =>
-    skuStageDone(sku, allLines, isSalesMethodDone)
-  )
+  const salesDone = salesSkuCount - salesPending
 
-  const procLines = allLines.filter(isProcurementSku)
+  const procLines = dailyLines.filter(isProcurementSku)
   const procSkus = uniqueShortageSkus(procLines)
   const procTotal = procSkus.length
   const procPending = procSkus.filter(
@@ -172,36 +268,37 @@ export function getPipelineChevronStages(orders: ShortagePO[]): PipelineChevronS
   ).length
   const procDone = procTotal - procPending
 
-  const fulfillDone = countSkusByPredicate(allLines, (sku) =>
-    skuStageDone(sku, allLines, isFulfillmentDone)
+  const weeklySkuCount = uniqueShortageSkus(weeklyLines).length
+  const weeklyHotelCount = new Set(weeklyLines.map((l) => l.po.customerName)).size
+  const fulfillDone = countSkusByPredicate(weeklyLines, (sku) =>
+    skuStageDone(sku, weeklyLines, isFulfillmentDone)
   )
-  const fulfillPending = totalSku - fulfillDone
+  const fulfillPending = weeklySkuCount - fulfillDone
 
-  const createProgress = pipelineProgress(totalSku, 0)
-  const fulfillProgress = pipelineProgress(fulfillDone, fulfillPending)
+  const createProgress = pipelineProgress(dailySkuCount, 0)
 
   return [
     {
       key: 'ops_create',
       title: '履约任务创建',
       tone: 'warm',
-      row1Value: totalSku,
+      row1Value: dailySkuCount,
       row1Label: '个品',
-      row2Value: customerCount,
-      row2Label: '个客户',
+      row2Value: dailyHotelCount,
+      row2Label: '个酒店',
       ...createProgress,
     },
     {
-      key: 'ops_advice',
-      title: '运营提供缺货履约建议',
-      taskPageTitle: '运营确认产品履约建议',
+      key: 'procurement_advice',
+      title: '采购提供缺货履约建议',
+      taskPageTitle: '采购确认缺货履约建议',
       tone: 'warm',
-      row1Value: opsPending,
+      row1Value: procAdvicePending,
       row1Label: '个品（待完成）',
-      row2Value: opsDone,
+      row2Value: procAdviceDone,
       row2Label: '个品（已完成）',
-      ...pipelineProgress(opsDone, opsPending),
-      actionRole: 'ops',
+      ...pipelineProgress(procAdviceDone, procAdvicePending),
+      actionRole: 'procurement',
     },
     {
       key: 'sales_method',
@@ -229,11 +326,11 @@ export function getPipelineChevronStages(orders: ShortagePO[]): PipelineChevronS
       key: 'fulfillment_done',
       title: '履约任务完成',
       tone: 'warm',
-      row1Value: totalSku,
+      row1Value: weeklySkuCount,
       row1Label: '个品',
-      row2Value: customerCount,
-      row2Label: '个客户',
-      ...fulfillProgress,
+      row2Value: weeklyHotelCount,
+      row2Label: '个酒店',
+      ...pipelineProgress(fulfillDone, fulfillPending),
     },
   ]
 }
@@ -253,20 +350,98 @@ export function getFulfillmentKpis(orders: ShortagePO[]): FulfillmentKpis {
   }
 }
 
+export const STAGE_ACTION_ROLE: Record<PipelineStageKey, WorkbenchRole | undefined> = {
+  ops_create: undefined,
+  procurement_advice: 'procurement',
+  sales_method: 'sales',
+  procurement: 'procurement',
+  fulfillment_done: undefined,
+}
+
+function lineInStageDetail(line: ShortagePOLine, stageKey: PipelineStageKey): boolean {
+  if (!line.isShortage) return false
+  switch (stageKey) {
+    case 'ops_create':
+      return true
+    case 'procurement_advice':
+      return lineNeedsProcurementAdvice(line)
+    case 'sales_method':
+      return lineNeedsProcurementAdvice(line) && isProcurementAdviceDone(line)
+    case 'procurement':
+      return isLineVisibleToProcurement(line)
+    case 'fulfillment_done':
+      return isSalesMethodDone(line) || isLogisticsFulfillment(line.fulfillmentMethod)
+  }
+}
+
+function stageDetailSub(
+  line: ShortagePOLine & { po: ShortagePO },
+  stageKey: PipelineStageKey
+): string {
+  const base = `还缺 ${line.gap}${line.unit} · 交货 ${line.po.requiredDeliveryDate}`
+  switch (stageKey) {
+    case 'ops_create':
+      return `${line.po.id} · ${base}`
+    case 'procurement_advice':
+      return isProcurementAdviceDone(line)
+        ? `建议：${line.opsAdvice}`
+        : `待到仓+物流测算并确认建议 · ${base}`
+    case 'sales_method':
+      return line.fulfillmentMethod === 'pending'
+        ? `待确认履约方式 · ${base}`
+        : `已确认 · ${FULFILLMENT_METHOD_LABEL[line.fulfillmentMethod]}`
+    case 'procurement':
+      return isProcurementDone(line)
+        ? `已寻源 · ${line.supplierName}`
+        : `待寻源 · ${base}`
+    case 'fulfillment_done':
+      return isFulfillmentDone(line) ? '已签收完成' : `履约中 · ${base}`
+  }
+}
+
+export function getStageDetailItems(
+  orders: ShortagePO[],
+  stageKey: PipelineStageKey,
+  refDate = new Date()
+): RoleTaskItem[] {
+  const allLines = getShortageLines(orders)
+  const scoped =
+    stageKey === 'fulfillment_done'
+      ? filterWeeklyLines(allLines, refDate)
+      : filterDailyLines(allLines, refDate)
+
+  return scoped
+    .filter((l) => lineInStageDetail(l, stageKey))
+    .map((l) => ({
+      id: l.id,
+      lineId: l.id,
+      poId: l.po.id,
+      sku: l.sku,
+      title: `${l.po.customerName} · ${l.productName}`,
+      sub: stageDetailSub(l, stageKey),
+      stage: stageKey,
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+}
+
 export function lineMatchesPipelineFilter(
   line: ShortagePOLine,
   filter: PipelineStageFilter
 ): boolean {
   if (!line.isShortage) return false
   switch (filter) {
-    case 'ops_advice':
-      return !isOpsAdviceDone(line)
+    case 'procurement_advice':
+      return lineNeedsProcurementAdvice(line) && !isProcurementAdviceDone(line)
     case 'sales_method':
-      return isOpsAdviceDone(line) && !isSalesMethodDone(line)
+      return (
+        lineNeedsProcurementAdvice(line) &&
+        isProcurementAdviceDone(line) &&
+        !isSalesMethodDone(line)
+      )
     case 'procurement':
       return isProcurementSku(line) && !isProcurementDone(line)
     case 'fulfillment_done':
-      return !isFulfillmentDone(line) && isSalesMethodDone(line) && isOpsAdviceDone(line)
+      return !isFulfillmentDone(line) && (isSalesMethodDone(line) || isLogisticsFulfillment(line.fulfillmentMethod))
   }
 }
 
@@ -431,22 +606,18 @@ export function getTasksForRole(
     !pipelineFilter || lineMatchesPipelineFilter(line, pipelineFilter)
 
   if (role === 'ops') {
-    return lines
-      .filter((l) => !isOpsAdviceDone(l) && matchFilter(l))
-      .map((l) => ({
-        id: l.id,
-        lineId: l.id,
-        poId: l.po.id,
-        sku: l.sku,
-        title: `${l.po.customerName} · ${l.productName}`,
-        sub: `还缺 ${l.gap}${l.unit} · 出货 ${l.po.requiredDeliveryDate}`,
-        stage: 'ops_advice' as const,
-      }))
+    return []
   }
 
   if (role === 'sales') {
     return lines
-      .filter((l) => isOpsAdviceDone(l) && !isSalesMethodDone(l) && matchFilter(l))
+      .filter(
+        (l) =>
+          lineNeedsProcurementAdvice(l) &&
+          isProcurementAdviceDone(l) &&
+          !isSalesMethodDone(l) &&
+          matchFilter(l)
+      )
       .map((l) => ({
         id: l.id,
         lineId: l.id,
@@ -458,7 +629,21 @@ export function getTasksForRole(
       }))
   }
 
-  return lines
+  const adviceTasks = lines
+    .filter(
+      (l) => lineNeedsProcurementAdvice(l) && !isProcurementAdviceDone(l) && matchFilter(l)
+    )
+    .map((l) => ({
+      id: l.id,
+      lineId: l.id,
+      poId: l.po.id,
+      sku: l.sku,
+      title: `${l.po.customerName} · ${l.productName}`,
+      sub: `还缺 ${l.gap}${l.unit} · 测算履约建议`,
+      stage: 'procurement_advice' as const,
+    }))
+
+  const sourceTasks = lines
     .filter((l) => isLineVisibleToProcurement(l) && !isProcurementDone(l) && matchFilter(l))
     .map((l) => ({
       id: l.id,
@@ -466,13 +651,110 @@ export function getTasksForRole(
       poId: l.po.id,
       sku: l.sku,
       title: `${l.productName} · ${l.po.customerName}`,
-      sub: `还缺 ${l.gap}${l.unit} · 当期到货`,
+      sub: `还缺 ${l.gap}${l.unit} · 当期到货寻源`,
       stage: 'procurement' as const,
     }))
+
+  return [...adviceTasks, ...sourceTasks]
+}
+
+/** 加载/同步时应用后台直发、正常补货算路 */
+export function applyBackendLogisticsRouting(orders: ShortagePO[]): ShortagePO[] {
+  return orders.map((po) => ({
+    ...po,
+    lines: po.lines.map((line) => {
+      if (!line.isShortage) return recomputeLineStatus(line)
+      const auto = resolveBackendLogisticsMethod(line, po)
+      if (!auto) return recomputeLineStatus(line)
+      return recomputeLineStatus({
+        ...line,
+        fulfillmentMethod: auto,
+        opsAdvice: '',
+        salesNote: '',
+        supplierName: '',
+        selectedSupplierId: '',
+        amount: 0,
+        procurementDraftNo: '',
+        procurementConfirmed: false,
+        recommendedSuppliers: [],
+        salesOutboundType: 'order_direct',
+        salesOutboundNo: line.salesOutboundNo || `SO-D-AUTO-${line.id.slice(-4)}`,
+        expectedFulfillQty: line.gap,
+      })
+    }),
+  }))
 }
 
 export function ensureLineSuppliers(line: ShortagePOLine): ShortagePOLine {
   if (line.recommendedSuppliers.length > 0) return line
   if (line.fulfillmentMethod !== 'must_on_time') return line
   return { ...line, recommendedSuppliers: getRecommendedSuppliers(line.sku) }
+}
+
+const DONE_METHOD_KEYS: FulfillmentMethod[] = [
+  'direct_ship',
+  'normal_replenishment',
+  'defer',
+  'must_on_time',
+]
+
+export function getOpsCreateSummary(orders: ShortagePO[], refDate = new Date()): OpsCreateSummary {
+  const allLines = getShortageLines(orders)
+  const dailyLines = filterDailyLines(allLines, refDate)
+  const dailyPoIds = new Set(dailyLines.map((l) => l.po.id))
+  const parsedPoIds = new Set(
+    dailyLines.filter((l) => l.status !== 'new' || l.fulfillmentMethod !== 'pending').map((l) => l.po.id)
+  )
+
+  return {
+    poSynced: orders.filter((po) => po.lines.some((l) => l.isShortage)).length,
+    poParsed: parsedPoIds.size > 0 ? parsedPoIds.size : dailyPoIds.size,
+    shortageLineCount: dailyLines.length,
+    skuCount: uniqueShortageSkus(dailyLines).length,
+    hotelCount: new Set(dailyLines.map((l) => l.po.customerName)).size,
+    totalGapQty: dailyLines.reduce((s, l) => s + l.gap, 0),
+  }
+}
+
+export function getFulfillmentDoneSummary(
+  orders: ShortagePO[],
+  refDate = new Date()
+): FulfillmentDoneSummary {
+  const allLines = getShortageLines(orders)
+  const weeklyLines = filterWeeklyLines(allLines, refDate)
+  const completed = weeklyLines.filter(isFulfillmentDone)
+  const counts = new Map<FulfillmentMethod, number>()
+  for (const key of DONE_METHOD_KEYS) counts.set(key, 0)
+  for (const line of completed) {
+    const m = line.fulfillmentMethod
+    if (DONE_METHOD_KEYS.includes(m)) counts.set(m, (counts.get(m) ?? 0) + 1)
+  }
+  const total = completed.length
+  const methodMix = DONE_METHOD_KEYS.map((method) => ({
+    method,
+    label: FULFILLMENT_METHOD_LABEL[method],
+    count: counts.get(method) ?? 0,
+    percent: total > 0 ? Math.round(((counts.get(method) ?? 0) / total) * 100) : 0,
+  }))
+
+  return {
+    hotelCount: new Set(completed.map((l) => l.po.customerName)).size,
+    orderCount: new Set(completed.map((l) => l.po.id)).size,
+    completedLineCount: completed.length,
+    methodMix,
+  }
+}
+
+export function getTasksForFlowKind(orders: ShortagePO[], kind: TaskFlowKind): RoleTaskItem[] {
+  if (kind === 'sales_method') {
+    return getTasksForRole(orders, 'sales', 'sales_method')
+  }
+  const all = getTasksForRole(orders, 'procurement')
+  return all.filter((t) => t.stage === kind)
+}
+
+export const TASK_FLOW_TITLES: Record<TaskFlowKind, string> = {
+  sales_method: '上传缺货履约方式',
+  procurement_advice: '确认缺货履约建议',
+  procurement: '执行缺货寻源',
 }

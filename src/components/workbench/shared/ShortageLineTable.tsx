@@ -1,5 +1,10 @@
 import type { ShortagePO, ShortagePOLine } from '../../../types/shortage'
-import { getFulfillmentStageLabel } from '../../../constants/shortageLabels'
+import { FULFILLMENT_METHOD_LABEL, getFulfillmentStageLabel } from '../../../constants/shortageLabels'
+import {
+  isLogisticsFulfillment,
+  showsSalesNote,
+  showsSupplierProcurement,
+} from '../../../utils/fulfillmentMethodRules'
 
 function FulfillmentStageBadge({ line }: { line: ShortagePOLine }) {
   const label = getFulfillmentStageLabel({
@@ -36,7 +41,7 @@ export function ShortageLineTable({ po, lines, onSelectLine }: ShortageLineTable
       <table className="w-full min-w-[640px] border-collapse text-left text-body-sm">
         <thead>
           <tr className="border-b border-tech bg-paper-white">
-            <th className="px-3 py-2.5 font-mono text-caption font-medium uppercase tracking-wide text-muted">
+            <th className="px-3 py-2.5 font-data text-caption font-medium uppercase tracking-wide text-muted">
               产品
             </th>
             <th className="px-3 py-2.5 text-caption font-medium uppercase tracking-wide text-muted">
@@ -73,30 +78,35 @@ export function ShortageLineTable({ po, lines, onSelectLine }: ShortageLineTable
             >
               <td className="px-3 py-2.5">
                 <p className="font-medium text-ink">{line.productName}</p>
-                <p className="font-mono text-caption text-muted">{line.sku}</p>
+                <p className="font-data text-caption text-muted">{line.sku}</p>
               </td>
-              <td className="px-3 py-2.5 font-mono text-caption">
+              <td className="px-3 py-2.5 font-data text-caption">
                 {line.quantity}
                 {line.unit}
               </td>
               <td className="px-3 py-2.5">¥{line.unitPrice}</td>
               <td className="px-3 py-2.5">¥{line.lineAmount.toLocaleString()}</td>
               <td className="px-3 py-2.5">{line.availableStock}</td>
-              <td className="px-3 py-2.5 font-mono font-semibold text-fire-orange">
+              <td className="px-3 py-2.5 font-data font-semibold text-fire-orange">
                 {line.gap}
                 {line.unit}
               </td>
               <td className="px-3 py-2.5">
                 <FulfillmentStageBadge line={line} />
-                {line.salesNote && (
+                {isLogisticsFulfillment(line.fulfillmentMethod) && (
+                  <p className="mt-1 text-caption text-muted">
+                    {FULFILLMENT_METHOD_LABEL[line.fulfillmentMethod]}
+                  </p>
+                )}
+                {showsSalesNote(line.fulfillmentMethod) && line.salesNote && (
                   <p className="mt-1 max-w-[140px] truncate text-caption text-muted">{line.salesNote}</p>
                 )}
               </td>
               <td className="px-3 py-2.5">
-                {line.supplierName ? (
+                {showsSupplierProcurement(line.fulfillmentMethod) && line.supplierName ? (
                   <p className="font-medium">
                     {line.supplierName}
-                    <span className="ml-2 font-mono text-caption text-muted">
+                    <span className="ml-2 font-data text-caption text-muted">
                       ¥{line.amount.toLocaleString()}
                     </span>
                   </p>

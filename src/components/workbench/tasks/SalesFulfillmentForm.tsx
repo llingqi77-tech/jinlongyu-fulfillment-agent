@@ -5,6 +5,7 @@ import {
   SALES_SELECTABLE_METHODS,
 } from '../../../constants/shortageLabels'
 import { useShortageStore } from '../../../store/shortageStore'
+import { showsProcurementAdvice } from '../../../utils/fulfillmentMethodRules'
 
 const BACKEND_DRIVEN_METHODS: FulfillmentMethod[] = ['direct_ship', 'normal_replenishment']
 
@@ -37,15 +38,18 @@ export function SalesFulfillmentForm({ lineId }: { lineId: string }) {
 
   return (
     <div className="role-task-panel space-y-5">
-      {ctx.opsAdvice && (
+      {showsProcurementAdvice(ctx.fulfillmentMethod) && ctx.opsAdvice.trim() && (
         <div className="agent-advice-panel rounded-lg px-4 py-3">
-          <p className="text-caption font-medium text-muted">履约建议</p>
+          <p className="text-caption font-medium text-muted">采购缺货履约建议</p>
           <p className="mt-2 text-body-sm text-ink">{ctx.opsAdvice}</p>
         </div>
       )}
 
       <div>
-        <p className="text-body-sm font-medium text-ink">确认产品履约方式</p>
+        <p className="text-body-sm font-medium text-ink">与客户沟通后选择履约方式</p>
+        <p className="mt-1 text-caption text-muted">
+          仅可选延期或当期到货；选延期将直接生成出库单并走物流，选当期到货将流转采购寻源。
+        </p>
         <div className="mt-3 flex flex-col gap-2 text-body-sm">
           {SALES_SELECTABLE_METHODS.map((m) => (
             <label

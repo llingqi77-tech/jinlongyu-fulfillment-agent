@@ -1,4 +1,5 @@
 import { WorkbenchContent } from './WorkbenchContent'
+import { WorkbenchOverlay } from './pipeline/WorkbenchOverlay'
 import { useShortageStore } from '../../store/shortageStore'
 import type { WorkbenchRole } from '../../types/shortage'
 
@@ -26,8 +27,8 @@ export function WorkbenchShell() {
             AI
           </div>
           <div className="min-w-0">
-          <h1 className="workbench-header__title">缺货履约工作台</h1>
-          <p className="workbench-header__meta">{today}</p>
+            <h1 className="workbench-header__title">缺货履约工作台</h1>
+            <p className="workbench-header__meta">{today}</p>
           </div>
         </div>
 
@@ -60,6 +61,7 @@ export function WorkbenchShell() {
       </header>
       <main className="workbench-main">
         <WorkbenchContent />
+        <WorkbenchOverlay />
       </main>
     </>
   )

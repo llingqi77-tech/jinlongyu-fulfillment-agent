@@ -39,6 +39,8 @@ export function withLineDefaults(
     amount: 0,
     procurementDraftNo: '',
     procurementConfirmed: false,
+    oaApprovalStatus: 'none',
+    oaRequestNo: '',
     salesUrgency: 'pending',
     eta: '',
     isExpedited: false,

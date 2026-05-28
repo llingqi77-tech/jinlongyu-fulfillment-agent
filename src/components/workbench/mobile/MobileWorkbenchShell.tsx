@@ -1,18 +1,12 @@
 import { WorkbenchOverlay } from '../pipeline/WorkbenchOverlay'
 import { useShortageStore } from '../../../store/shortageStore'
-import type { WorkbenchRole } from '../../../types/shortage'
+import { ROLE_LABEL } from '../../../utils/mobileAgentSummary'
+import { MobileChatToolbar } from './MobileChatToolbar'
 import { MobileWorkbenchContent } from './MobileWorkbenchContent'
 
-const ROLES: { id: WorkbenchRole; label: string }[] = [
-  { id: 'ops', label: '运营' },
-  { id: 'sales', label: '销售' },
-  { id: 'procurement', label: '采购' },
-]
-
-/** 测试用角色切换；上线后由系统注入角色，可移除此栏 */
 export function MobileWorkbenchShell() {
   const role = useShortageStore((s) => s.role)
-  const setRole = useShortageStore((s) => s.setRole)
+  const phase = useShortageStore((s) => s.mobileOnboardingPhase)
   const closeWorkbench = useShortageStore((s) => s.closeWorkbench)
   const today = new Date().toLocaleDateString('zh-CN', {
     year: 'numeric',
@@ -20,49 +14,39 @@ export function MobileWorkbenchShell() {
     day: 'numeric',
   })
 
+  const showChatHeader = phase === 'ready'
+
   return (
     <>
       <header className="mobile-workbench-header">
         <div className="mobile-workbench-header__top">
-          <div className="mobile-workbench-header__brand">
-            <div className="workbench-header__logo" aria-hidden>
-              AI
-            </div>
-            <div className="mobile-workbench-header__text">
-              <h1 className="mobile-workbench-header__title">工作台</h1>
-              <p className="mobile-workbench-header__meta">{today}</p>
-            </div>
-          </div>
           <button
             type="button"
             onClick={closeWorkbench}
-            className="mobile-workbench-header__close"
-            aria-label="关闭工作台"
+            className="mobile-workbench-header__back"
+            aria-label="返回"
           >
-            ✕
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M15 6l-6 6 6 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
-        </div>
-
-        <div
-          className="role-segment mobile-workbench-header__roles"
-          role="tablist"
-          aria-label="工作台角色（测试）"
-        >
-          {ROLES.map((r) => {
-            const active = role === r.id
-            return (
-              <button
-                key={r.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setRole(r.id)}
-                className={`role-segment__btn ${active ? 'role-segment__btn--active' : ''}`}
-              >
-                {r.label}
-              </button>
-            )
-          })}
+          <div className="mobile-workbench-header__brand">
+            <div className="mobile-workbench-header__text">
+              <h1 className="mobile-workbench-header__title">智能履约助手</h1>
+              {showChatHeader ? (
+                <p className="mobile-workbench-header__meta">
+                  {ROLE_LABEL[role]} · {today}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {showChatHeader ? <MobileChatToolbar /> : null}
         </div>
       </header>
       <main className="workbench-main">

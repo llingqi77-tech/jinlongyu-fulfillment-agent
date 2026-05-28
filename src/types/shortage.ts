@@ -224,6 +224,49 @@ export interface RoleTaskItem {
   title: string
   sub: string
   stage: PipelineStageKey
+  /** 手机端 Agent 首页：客户交货日 */
+  requiredDeliveryDate?: string
+  gap?: number
+  unit?: string
+  stageLabel?: string
+  /** 交期越近分值越高，用于排序 */
+  urgencyScore?: number
+  customerName?: string
+  productName?: string
+}
+
+export type MobileAgentPhase = 'idle' | 'awaiting_task_input' | 'confirming'
+
+export type MobileOnboardingPhase = 'role_pick' | 'activating' | 'ready'
+
+export type MobileChatMessageKind = 'text' | 'welcome_card' | 'task_confirm' | 'system'
+
+export interface MobileChatMessageMeta {
+  kpis?: MobileHomeKpis
+  tasks?: RoleTaskItem[]
+}
+
+export interface MobileChatMessage {
+  id: string
+  side: 'user' | 'agent'
+  content: string
+  kind?: MobileChatMessageKind
+  meta?: MobileChatMessageMeta
+  timestamp: string
+  stream?: boolean
+}
+
+/** 移动端 KPI 统计维度 */
+export type MobileKpiDimension = 'sku' | 'hotel' | 'po'
+
+export interface MobileHomeKpis {
+  dimension: MobileKpiDimension
+  fulfilledCount: number
+  pendingTaskCount: number
+  /** 当前维度下的缺货计数（展示名随维度变化） */
+  shortageLineCount: number
+  shortageSkuCount: number
+  totalGap: number
 }
 
 export type TaskFlowKind = 'sales_method' | 'procurement_advice' | 'procurement'

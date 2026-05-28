@@ -1,15 +1,12 @@
-import { WorkbenchAgentDialog } from '../pipeline/WorkbenchAgentDialog'
-import { WorkbenchRoleDock } from '../pipeline/WorkbenchRoleDock'
-import { MobileFulfillmentDashboard } from './MobileFulfillmentDashboard'
+import { useShortageStore } from '../../../store/shortageStore'
+import { MobileAgentActivating } from './MobileAgentActivating'
+import { MobileAgentHome } from './MobileAgentHome'
+import { MobileRolePickScreen } from './MobileRolePickScreen'
 
 export function MobileWorkbenchContent() {
-  return (
-    <div className="mobile-dashboard-layout">
-      <MobileFulfillmentDashboard />
-      <div className="mobile-dashboard-dock">
-        <WorkbenchRoleDock />
-        <WorkbenchAgentDialog />
-      </div>
-    </div>
-  )
+  const phase = useShortageStore((s) => s.mobileOnboardingPhase)
+
+  if (phase === 'role_pick') return <MobileRolePickScreen />
+  if (phase === 'activating') return <MobileAgentActivating />
+  return <MobileAgentHome />
 }

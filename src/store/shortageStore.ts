@@ -3,16 +3,20 @@ import { MOCK_SHORTAGE_ORDERS } from '../mocks/shortageOrders'
 import type {
   ActivityEvent,
   FulfillmentMethod,
+  MobileAgentPhase,
+  MobileChatMessage,
+  MobileOnboardingPhase,
   PipelineStageFilter,
   ShortagePO,
   TaskFlowKind,
   WorkbenchOverlayView,
   WorkbenchRole,
 } from '../types/shortage'
-import { getTasksForFlowKind } from '../utils/shortageAggregations'
+import { getMobileHomeKpis, getRoleTasksSorted } from '../utils/mobileAgentSummary'
 import {
   applyBackendLogisticsRouting,
   ensureLineSuppliers,
+  getTasksForFlowKind,
   recomputeLineStatus,
 } from '../utils/shortageAggregations'
 import { syncLegacySalesUrgency } from '../utils/shortageLineDefaults'
@@ -39,7 +43,7 @@ function cloneOrders(orders: ShortagePO[]): ShortagePO[] {
   }))
 }
 
-interface ShortageState {
+export interface ShortageState {
   workbenchOpen: boolean
   role: WorkbenchRole
   orders: ShortagePO[]
@@ -50,6 +54,12 @@ interface ShortageState {
   toast: string | null
   signoffTimerId: ReturnType<typeof setInterval> | null
   overlayView: WorkbenchOverlayView | null
+  mobileChatMessages: MobileChatMessage[]
+  activeTaskLineId: string | null
+  mobileAgentPhase: MobileAgentPhase
+  mobileOnboardingPhase: MobileOnboardingPhase
+  mobileDashboardOpen: boolean
+  mobileTaskListOpen: boolean
 
   openWorkbench: () => void
   closeWorkbench: () => void
@@ -78,6 +88,22 @@ interface ShortageState {
   openTaskFlow: (kind: TaskFlowKind) => void
   closeTaskFlow: () => void
   checkTaskFlowComplete: () => void
+  resetMobileAgentSession: () => void
+  appendMobileChat: (msg: Omit<MobileChatMessage, 'id' | 'timestamp'>) => void
+  setActiveTask: (lineId: string | null) => void
+  setMobileAgentPhase: (phase: MobileAgentPhase) => void
+  completeActiveMobileTask: (payload: {
+    fulfillmentMethod?: FulfillmentMethod
+    salesNote?: string
+    opsAdvice?: string
+    supplierIndex?: number
+  }) => boolean
+  setMobileOnboardingPhase: (phase: MobileOnboardingPhase) => void
+  finishMobileActivation: () => void
+  openMobileDashboardSheet: () => void
+  closeMobileDashboardSheet: () => void
+  openMobileTaskListSheet: () => void
+  closeMobileTaskListSheet: () => void
 }
 
 function patchLine(
@@ -111,6 +137,12 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   toast: null,
   signoffTimerId: null,
   overlayView: null,
+  mobileChatMessages: [],
+  activeTaskLineId: null,
+  mobileAgentPhase: 'idle',
+  mobileOnboardingPhase: 'role_pick',
+  mobileDashboardOpen: false,
+  mobileTaskListOpen: false,
 
   openWorkbench: () => {
     const { signoffTimerId } = get()
@@ -121,6 +153,12 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       selectedTaskLineId: null,
       pipelineFilter: null,
       overlayView: null,
+      mobileChatMessages: [],
+      activeTaskLineId: null,
+      mobileAgentPhase: 'idle',
+      mobileOnboardingPhase: 'role_pick',
+      mobileDashboardOpen: false,
+      mobileTaskListOpen: false,
     })
   },
 
@@ -131,16 +169,26 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       generatePoLineId: null,
       selectedTaskLineId: null,
       overlayView: null,
+      mobileOnboardingPhase: 'role_pick',
+      mobileDashboardOpen: false,
+      mobileTaskListOpen: false,
+      mobileChatMessages: [],
+      activeTaskLineId: null,
+      mobileAgentPhase: 'idle',
     })
   },
 
-  setRole: (role) =>
+  setRole: (role) => {
     set({
       role,
       selectedTaskLineId: null,
       pipelineFilter: null,
       overlayView: null,
-    }),
+      mobileChatMessages: [],
+      activeTaskLineId: null,
+      mobileAgentPhase: 'idle',
+    })
+  },
 
   setPipelineFilter: (filter) =>
     set((s) => ({
@@ -487,4 +535,110 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       get().closeOverlay()
     }
   },
+
+  resetMobileAgentSession: () =>
+    set({
+      mobileChatMessages: [],
+      activeTaskLineId: null,
+      mobileAgentPhase: 'idle',
+    }),
+
+  appendMobileChat: (msg) =>
+    set((s) => ({
+      mobileChatMessages: [
+        ...s.mobileChatMessages,
+        {
+          ...msg,
+          id: uid(),
+          timestamp: nowTime(),
+        },
+      ],
+    })),
+
+  setActiveTask: (lineId) => set({ activeTaskLineId: lineId }),
+
+  setMobileAgentPhase: (phase) => set({ mobileAgentPhase: phase }),
+
+  completeActiveMobileTask: (payload) => {
+    const { activeTaskLineId, orders, role } = get()
+    if (!activeTaskLineId || role === 'ops') return false
+
+    const ctx = orders
+      .flatMap((o) => o.lines.map((l) => ({ ...l, po: o })))
+      .find((l) => l.id === activeTaskLineId)
+    if (!ctx) return false
+
+    if (role === 'sales' && payload.fulfillmentMethod) {
+      get().setFulfillmentMethod(
+        activeTaskLineId,
+        payload.fulfillmentMethod,
+        payload.salesNote ?? ''
+      )
+      return true
+    }
+
+    if (role === 'procurement') {
+      if (payload.opsAdvice !== undefined) {
+        get().setOpsAdvice(activeTaskLineId, payload.opsAdvice)
+        return true
+      }
+
+      if (payload.supplierIndex !== undefined) {
+        const line = ensureLineSuppliers(ctx)
+        const supplier = line.recommendedSuppliers[payload.supplierIndex]
+        if (!supplier) return false
+        const amount = Math.round(ctx.gap * ctx.unitPrice * 0.9)
+        get().applyCustomSupplier(activeTaskLineId, supplier.name, amount, supplier.id)
+
+        if (ctx.fulfillmentMethod === 'must_on_time') {
+          const updated = get()
+            .orders.flatMap((o) => o.lines)
+            .find((l) => l.id === activeTaskLineId)
+          if (updated?.supplierName) {
+            get().submitOaApproval(activeTaskLineId)
+            window.setTimeout(() => {
+              const cur = get().orders.flatMap((o) => o.lines).find((l) => l.id === activeTaskLineId)
+              if (cur?.oaApprovalStatus === 'approved' && !cur.procurementConfirmed) {
+                get().generateProcurementDraft(activeTaskLineId)
+                get().confirmProcurementToErp(activeTaskLineId)
+              }
+            }, 3000)
+          }
+        } else {
+          get().generateProcurementDraft(activeTaskLineId)
+          get().confirmProcurementToErp(activeTaskLineId)
+        }
+        return true
+      }
+    }
+
+    return false
+  },
+
+  setMobileOnboardingPhase: (phase) => set({ mobileOnboardingPhase: phase }),
+
+  finishMobileActivation: () => {
+    const { orders, role } = get()
+    const kpis = getMobileHomeKpis(orders, role)
+    const tasks = getRoleTasksSorted(orders, role)
+    set({
+      mobileOnboardingPhase: 'ready',
+      mobileChatMessages: [],
+      activeTaskLineId: null,
+      mobileAgentPhase: 'idle',
+    })
+
+    get().appendMobileChat({
+      side: 'agent',
+      content: '',
+      kind: 'welcome_card',
+      meta: { kpis, tasks },
+      stream: true,
+    })
+  },
+
+  openMobileDashboardSheet: () => set({ mobileDashboardOpen: true }),
+  closeMobileDashboardSheet: () => set({ mobileDashboardOpen: false }),
+  openMobileTaskListSheet: () => set({ mobileTaskListOpen: true }),
+  closeMobileTaskListSheet: () => set({ mobileTaskListOpen: false }),
 }))

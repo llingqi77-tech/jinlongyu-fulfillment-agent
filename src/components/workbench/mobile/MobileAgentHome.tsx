@@ -2,6 +2,7 @@ import { MobileAgentComposer } from './MobileAgentComposer'
 import { MobileAgentThread } from './MobileAgentThread'
 import { MobileDashboardSheet } from './MobileDashboardSheet'
 import { MobileQuickActions } from './MobileQuickActions'
+import { MobilePipelineStageSheet } from './MobilePipelineStageSheet'
 import { MobileTaskListSheet } from './MobileTaskListSheet'
 
 export function MobileAgentHome() {
@@ -14,6 +15,7 @@ export function MobileAgentHome() {
       </footer>
       <MobileDashboardSheet />
       <MobileTaskListSheet />
+      <MobilePipelineStageSheet />
     </div>
   )
 }

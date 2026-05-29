@@ -135,6 +135,39 @@ export function isProcurementDone(line: ShortagePOLine): boolean {
   return line.procurementConfirmed && !!line.supplierName && line.amount > 0
 }
 
+export type ProcurementSourcingSubstep = 'supplier' | 'po'
+
+/** 采购寻源待办子步骤：待确定供应商 / 已提交 OA 待提交采购订单 */
+export function classifyProcurementSourcingSubstep(
+  line: ShortagePOLine
+): ProcurementSourcingSubstep | null {
+  if (!isProcurementSku(line) || isProcurementDone(line)) return null
+  if (
+    !line.supplierName ||
+    line.amount <= 0 ||
+    line.oaApprovalStatus === 'none' ||
+    line.oaApprovalStatus === 'rejected'
+  ) {
+    return 'supplier'
+  }
+  if (!line.procurementConfirmed) return 'po'
+  return null
+}
+
+export function getProcurementSourcingBreakdown(orders: ShortagePO[], refDate = new Date()) {
+  const scoped = filterDailyLines(getShortageLines(orders), refDate).filter((l) =>
+    lineMatchesPipelineFilter(l, 'procurement')
+  )
+  let supplierPending = 0
+  let poPending = 0
+  for (const line of scoped) {
+    const sub = classifyProcurementSourcingSubstep(line)
+    if (sub === 'supplier') supplierPending++
+    else if (sub === 'po') poPending++
+  }
+  return { supplierPending, poPending, total: supplierPending + poPending }
+}
+
 export function isFulfillmentDone(line: ShortagePOLine): boolean {
   return line.signoffStatus === 'signed' || line.status === 'completed'
 }
@@ -240,7 +273,7 @@ export function getPipelineChevronStages(
   const dailyLines = filterDailyLines(allLines, refDate)
   const weeklyLines = filterWeeklyLines(allLines, refDate)
 
-  const dailySkuCount = uniqueShortageSkus(dailyLines).length
+  const dailyTaskCount = dailyLines.length
   const dailyHotelCount = new Set(dailyLines.map((l) => l.po.customerName)).size
 
   const adviceLines = dailyLines.filter(lineNeedsProcurementAdvice)
@@ -275,15 +308,15 @@ export function getPipelineChevronStages(
   )
   const fulfillPending = weeklySkuCount - fulfillDone
 
-  const createProgress = pipelineProgress(dailySkuCount, 0)
+  const createProgress = pipelineProgress(dailyTaskCount, 0)
 
   return [
     {
       key: 'ops_create',
       title: '履约任务创建',
       tone: 'warm',
-      row1Value: dailySkuCount,
-      row1Label: '个品',
+      row1Value: dailyTaskCount,
+      row1Label: '个待履约任务',
       row2Value: dailyHotelCount,
       row2Label: '个酒店',
       ...createProgress,
@@ -333,6 +366,38 @@ export function getPipelineChevronStages(
       ...pipelineProgress(fulfillDone, fulfillPending),
     },
   ]
+}
+
+export function getStagePendingCount(
+  orders: ShortagePO[],
+  stageKey: PipelineStageKey,
+  refDate = new Date()
+): number {
+  const stage = getPipelineChevronStages(orders, refDate).find((s) => s.key === stageKey)
+  if (!stage) return 0
+  if (stageKey === 'ops_create') return stage.row1Value
+  return Math.max(0, stage.progressTotal - stage.progressDone)
+}
+
+export function getPipelineBottleneckStage(
+  orders: ShortagePO[],
+  refDate = new Date()
+): { key: PipelineStageKey; pending: number } | null {
+  const stages = getPipelineChevronStages(orders, refDate)
+  let best: PipelineChevronStage | null = null
+  let maxPending = 0
+
+  for (const stage of stages) {
+    if (stage.key === 'ops_create') continue
+    const pending = Math.max(0, stage.progressTotal - stage.progressDone)
+    if (pending > maxPending) {
+      maxPending = pending
+      best = stage
+    }
+  }
+
+  if (!best || maxPending === 0) return null
+  return { key: best.key, pending: maxPending }
 }
 
 export function getFulfillmentKpis(orders: ShortagePO[]): FulfillmentKpis {
@@ -391,9 +456,16 @@ function stageDetailSub(
         ? `待确认履约方式 · ${base}`
         : `已确认 · ${FULFILLMENT_METHOD_LABEL[line.fulfillmentMethod]}`
     case 'procurement':
-      return isProcurementDone(line)
-        ? `已寻源 · ${line.supplierName}`
-        : `待寻源 · ${base}`
+      if (isProcurementDone(line)) {
+        return `已寻源 · ${line.supplierName} · PO ${line.opsPoNumber || line.procurementDraftNo}`
+      }
+      if (classifyProcurementSourcingSubstep(line) === 'supplier') {
+        return `①待确定供应商 · ${base}`
+      }
+      if (line.oaApprovalStatus === 'pending') {
+        return `②OA审批中 · ${base}`
+      }
+      return `②待提交采购订单 · ${base}`
     case 'fulfillment_done':
       return isFulfillmentDone(line) ? '已签收完成' : `履约中 · ${base}`
   }
@@ -404,6 +476,10 @@ export function getStageDetailItems(
   stageKey: PipelineStageKey,
   refDate = new Date()
 ): RoleTaskItem[] {
+  if (stageKey === 'ops_create') {
+    return getOpsCreateTaskItems(orders, refDate)
+  }
+
   const allLines = getShortageLines(orders)
   const scoped =
     stageKey === 'fulfillment_done'
@@ -412,6 +488,75 @@ export function getStageDetailItems(
 
   return scoped
     .filter((l) => lineInStageDetail(l, stageKey))
+    .map((l) => ({
+      id: l.id,
+      lineId: l.id,
+      poId: l.po.id,
+      sku: l.sku,
+      title: `${l.po.customerName} · ${l.productName}`,
+      sub: stageDetailSub(l, stageKey),
+      stage: stageKey,
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+}
+
+/** 任务创建阶段按酒店+品项划分（每条缺货行一项待履约任务） */
+export function getOpsCreateTaskItems(
+  orders: ShortagePO[],
+  refDate = new Date()
+): RoleTaskItem[] {
+  const dailyLines = filterDailyLines(getShortageLines(orders), refDate)
+
+  return dailyLines
+    .map((l) => ({
+      id: l.id,
+      lineId: l.id,
+      poId: l.po.id,
+      sku: l.sku,
+      title: `${l.po.customerName} · ${l.productName}`,
+      sub: `交期 ${l.po.requiredDeliveryDate} · 缺 ${l.gap}${l.unit}`,
+      stage: 'ops_create' as const,
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+}
+
+export function getPipelineBottleneckStageKey(
+  orders: ShortagePO[],
+  refDate = new Date()
+): PipelineStageKey | null {
+  const stages = getPipelineChevronStages(orders, refDate)
+  let maxPending = 0
+  let bottleneck: PipelineStageKey | null = null
+
+  for (const stage of stages) {
+    if (stage.key === 'ops_create') continue
+    const pending = Math.max(0, stage.progressTotal - stage.progressDone)
+    if (pending > maxPending) {
+      maxPending = pending
+      bottleneck = stage.key
+    }
+  }
+
+  return maxPending > 0 ? bottleneck : null
+}
+
+export function getStagePendingDetailItems(
+  orders: ShortagePO[],
+  stageKey: PipelineStageKey,
+  refDate = new Date()
+): RoleTaskItem[] {
+  if (stageKey === 'ops_create') {
+    return getOpsCreateTaskItems(orders, refDate)
+  }
+
+  const allLines = getShortageLines(orders)
+  const scoped =
+    stageKey === 'fulfillment_done'
+      ? filterWeeklyLines(allLines, refDate)
+      : filterDailyLines(allLines, refDate)
+
+  return scoped
+    .filter((l) => lineMatchesPipelineFilter(l, stageKey))
     .map((l) => ({
       id: l.id,
       lineId: l.id,

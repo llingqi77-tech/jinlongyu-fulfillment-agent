@@ -5,9 +5,8 @@ import type { RoleTaskItem } from '../../../types/shortage'
 import {
   getMobileTaskListHotels,
   getMobileTaskListItems,
-  getRoleTasksSorted,
 } from '../../../utils/mobileAgentSummary'
-import { buildTaskSelectMessage, sendMobileAgentMessage } from '../../../utils/mobileAgentDialogue'
+import { startMobileTaskInChat } from '../../../utils/mobileAgentDialogue'
 
 export function MobileTaskListSheet() {
   const open = useShortageStore((s) => s.mobileTaskListOpen)
@@ -29,13 +28,7 @@ export function MobileTaskListSheet() {
 
   const pickTask = (task: RoleTaskItem) => {
     close()
-    const allPending = getRoleTasksSorted(orders, role)
-    const idx = allPending.findIndex((t) => t.lineId === task.lineId)
-    if (idx >= 0) {
-      sendMobileAgentMessage(buildTaskSelectMessage(idx + 1))
-    } else {
-      sendMobileAgentMessage(`我想先完成 ${task.title}`)
-    }
+    startMobileTaskInChat(task)
   }
 
   return (

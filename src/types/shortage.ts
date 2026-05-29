@@ -239,11 +239,52 @@ export type MobileAgentPhase = 'idle' | 'awaiting_task_input' | 'confirming'
 
 export type MobileOnboardingPhase = 'role_pick' | 'activating' | 'ready'
 
-export type MobileChatMessageKind = 'text' | 'welcome_card' | 'task_confirm' | 'system'
+export type MobileChatMessageKind =
+  | 'text'
+  | 'welcome_card'
+  | 'task_confirm'
+  | 'system'
+  | 'order_info'
+  | 'supplier_options'
+
+export interface MobileSupplierOption {
+  index: number
+  name: string
+  hasStock: SupplierStockStatus
+  suggestedAmount: number
+}
+
+export interface MobileOrderInfoDetail {
+  hotelName: string
+  hotelAddress: string
+  productName: string
+  spec: string
+  gap: number
+  unit: string
+  unitPrice: number
+  totalAmount: number
+  deliveryDate: string
+  remark: string
+}
+
+export interface MobileChatAction {
+  id: string
+  label: string
+  message: string
+}
 
 export interface MobileChatMessageMeta {
   kpis?: MobileHomeKpis
   tasks?: RoleTaskItem[]
+  orderDetails?: MobileOrderInfoDetail[]
+  taskProgress?: string
+  taskIndex?: number
+  fulfillmentMethodLabel?: string
+  fulfillmentFieldLabel?: string
+  fulfillmentDetail?: string
+  orderStatus?: 'active' | 'completed'
+  suppliers?: MobileSupplierOption[]
+  actions?: MobileChatAction[]
 }
 
 export interface MobileChatMessage {

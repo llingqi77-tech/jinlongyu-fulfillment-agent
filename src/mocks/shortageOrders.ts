@@ -96,6 +96,12 @@ export const MOCK_SHORTAGE_ORDERS: ShortagePO[] = [
         fulfillmentMethod: 'must_on_time',
         salesNote: '客户要求必须当期到货，不可延期',
         recommendedSuppliers: getRecommendedSuppliers('JLY-5L-001'),
+        selectedSupplierId: 'sup-JLY-5L-001-0',
+        supplierName: '益海嘉里华北供应链',
+        amount: 1836,
+        oaApprovalStatus: 'approved',
+        oaRequestNo: 'OA-884201',
+        procurementMode: 'urgent',
         status: 'await_procurement',
       }),
       withLineDefaults({

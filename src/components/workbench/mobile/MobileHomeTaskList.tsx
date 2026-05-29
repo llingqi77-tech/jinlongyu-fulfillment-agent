@@ -1,11 +1,10 @@
 import type { RoleTaskItem } from '../../../types/shortage'
-import { buildTaskSelectMessage } from '../../../utils/mobileAgentDialogue'
 
 const DEFAULT_MAX_VISIBLE = 7
 
 type MobileHomeTaskListProps = {
   tasks: RoleTaskItem[]
-  onSelectTask: (message: string) => void
+  onSelectTask: (task: RoleTaskItem) => void
   /** 欢迎卡内预览条数；任务清单 sheet 用默认 7 */
   maxVisible?: number
   onViewMore?: () => void
@@ -33,7 +32,7 @@ export function MobileHomeTaskList({
           <button
             type="button"
             className="mobile-home-task-list__item"
-            onClick={() => onSelectTask(buildTaskSelectMessage(index + 1))}
+            onClick={() => onSelectTask(task)}
           >
             <span className="mobile-home-task-list__index" aria-hidden>
               {index + 1}

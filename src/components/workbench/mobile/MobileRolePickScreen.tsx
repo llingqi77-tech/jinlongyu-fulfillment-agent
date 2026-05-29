@@ -10,6 +10,7 @@ const ROLES: { id: WorkbenchRole; label: string; desc: string; icon: string }[] 
 export function MobileRolePickScreen() {
   const setRole = useShortageStore((s) => s.setRole)
   const setMobileOnboardingPhase = useShortageStore((s) => s.setMobileOnboardingPhase)
+  const closeWorkbench = useShortageStore((s) => s.closeWorkbench)
 
   const pick = (role: WorkbenchRole) => {
     setRole(role)
@@ -18,25 +19,57 @@ export function MobileRolePickScreen() {
 
   return (
     <div className="mobile-role-pick">
-      <p className="mobile-role-pick__lead">请选择你的角色，我将为你激活专属的智能履约助手</p>
-      <ul className="mobile-role-pick__list">
-        {ROLES.map((r) => (
-          <li key={r.id}>
-            <button type="button" className="mobile-role-pick__card" onClick={() => pick(r.id)}>
-              <span className="mobile-role-pick__icon" aria-hidden>
-                {r.icon}
-              </span>
-              <span className="mobile-role-pick__body">
-                <span className="mobile-role-pick__label">{r.label}</span>
-                <span className="mobile-role-pick__desc">{r.desc}</span>
-              </span>
-              <span className="mobile-role-pick__arrow" aria-hidden>
-                ›
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <button
+        type="button"
+        className="mobile-role-pick__close"
+        onClick={closeWorkbench}
+        aria-label="返回"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M15 6l-6 6 6 6"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span className="mobile-role-pick__close-label">返回</span>
+      </button>
+
+      <section className="mobile-role-pick__panel" aria-labelledby="mobile-role-pick-title">
+        <div className="mobile-role-pick__content">
+          <p className="mobile-role-pick__greeting">你好～</p>
+          <h1 className="mobile-role-pick__headline">我是智能履约助手</h1>
+          <p className="mobile-role-pick__intro">选择你的角色，我将为你激活专属工作台与对话能力。</p>
+          <div className="mobile-role-pick__panel-head">
+            <div>
+              <h2 id="mobile-role-pick-title" className="mobile-role-pick__panel-title">
+                选择你的角色
+              </h2>
+              <p className="mobile-role-pick__panel-kicker">为你匹配工作视图</p>
+            </div>
+          </div>
+          <ul className="mobile-role-pick__list">
+            {ROLES.map((r) => (
+              <li key={r.id}>
+                <button type="button" className="mobile-role-pick__card" onClick={() => pick(r.id)}>
+                  <span className="mobile-role-pick__icon" aria-hidden>
+                    {r.icon}
+                  </span>
+                  <span className="mobile-role-pick__body">
+                    <span className="mobile-role-pick__label">{r.label}</span>
+                    <span className="mobile-role-pick__desc">{r.desc}</span>
+                  </span>
+                  <span className="mobile-role-pick__arrow" aria-hidden>
+                    ›
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
     </div>
   )
 }

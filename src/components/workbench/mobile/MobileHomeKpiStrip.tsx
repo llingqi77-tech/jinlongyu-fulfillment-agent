@@ -35,8 +35,22 @@ export function MobileHomeKpiStrip() {
 
   return (
     <div className="mobile-kpi-panel" role="group" aria-label="今日数据概览">
-      <div className="mobile-kpi-panel__head">
-        <p className="mobile-kpi-panel__scope">统计范围：今日交期缺货</p>
+      <div className="mobile-kpi-panel__row">
+        <div className="mobile-kpi-strip">
+          <div className="mobile-kpi-strip__item">
+            <span className="mobile-kpi-strip__value">{kpis.fulfilledCount}</span>
+            <span className="mobile-kpi-strip__label">已履约</span>
+          </div>
+          <div className="mobile-kpi-strip__item mobile-kpi-strip__item--accent">
+            <span className="mobile-kpi-strip__value">{kpis.pendingTaskCount}</span>
+            <span className="mobile-kpi-strip__label">待完成</span>
+          </div>
+          <div className="mobile-kpi-strip__item">
+            <span className="mobile-kpi-strip__value">{kpis.shortageLineCount}</span>
+            <span className="mobile-kpi-strip__label">{shortageLabel}</span>
+          </div>
+        </div>
+
         <div className="mobile-kpi-panel__filter" ref={filterRef}>
           <button
             type="button"
@@ -73,24 +87,6 @@ export function MobileHomeKpiStrip() {
               ))}
             </ul>
           ) : null}
-        </div>
-      </div>
-
-      <div className="mobile-kpi-strip">
-        <div className="mobile-kpi-strip__item">
-          <span className="mobile-kpi-strip__value">{kpis.fulfilledCount}</span>
-          <span className="mobile-kpi-strip__label">已履约</span>
-          <span className="mobile-kpi-strip__dim">按{dimLabel}</span>
-        </div>
-        <div className="mobile-kpi-strip__item mobile-kpi-strip__item--accent">
-          <span className="mobile-kpi-strip__value">{kpis.pendingTaskCount}</span>
-          <span className="mobile-kpi-strip__label">待完成</span>
-          <span className="mobile-kpi-strip__dim">按{dimLabel}</span>
-        </div>
-        <div className="mobile-kpi-strip__item">
-          <span className="mobile-kpi-strip__value">{kpis.shortageLineCount}</span>
-          <span className="mobile-kpi-strip__label">{shortageLabel}</span>
-          <span className="mobile-kpi-strip__dim">按{dimLabel}</span>
         </div>
       </div>
     </div>

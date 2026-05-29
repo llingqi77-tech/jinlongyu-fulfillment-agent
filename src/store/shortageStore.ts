@@ -7,6 +7,7 @@ import type {
   MobileChatMessage,
   MobileOnboardingPhase,
   PipelineStageFilter,
+  PipelineStageKey,
   ShortagePO,
   TaskFlowKind,
   WorkbenchOverlayView,
@@ -60,6 +61,8 @@ export interface ShortageState {
   mobileOnboardingPhase: MobileOnboardingPhase
   mobileDashboardOpen: boolean
   mobileTaskListOpen: boolean
+  mobilePipelineStageKey: PipelineStageKey | null
+  mobileTaskDisplayIndex: number
 
   openWorkbench: () => void
   closeWorkbench: () => void
@@ -92,6 +95,7 @@ export interface ShortageState {
   appendMobileChat: (msg: Omit<MobileChatMessage, 'id' | 'timestamp'>) => void
   setActiveTask: (lineId: string | null) => void
   setMobileAgentPhase: (phase: MobileAgentPhase) => void
+  setMobileTaskDisplayIndex: (index: number) => void
   completeActiveMobileTask: (payload: {
     fulfillmentMethod?: FulfillmentMethod
     salesNote?: string
@@ -104,6 +108,8 @@ export interface ShortageState {
   closeMobileDashboardSheet: () => void
   openMobileTaskListSheet: () => void
   closeMobileTaskListSheet: () => void
+  openMobilePipelineStageSheet: (stageKey: PipelineStageKey) => void
+  closeMobilePipelineStageSheet: () => void
 }
 
 function patchLine(
@@ -143,6 +149,8 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   mobileOnboardingPhase: 'role_pick',
   mobileDashboardOpen: false,
   mobileTaskListOpen: false,
+  mobilePipelineStageKey: null,
+  mobileTaskDisplayIndex: 0,
 
   openWorkbench: () => {
     const { signoffTimerId } = get()
@@ -159,6 +167,8 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       mobileOnboardingPhase: 'role_pick',
       mobileDashboardOpen: false,
       mobileTaskListOpen: false,
+      mobilePipelineStageKey: null,
+      mobileTaskDisplayIndex: 0,
     })
   },
 
@@ -172,9 +182,11 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       mobileOnboardingPhase: 'role_pick',
       mobileDashboardOpen: false,
       mobileTaskListOpen: false,
+      mobilePipelineStageKey: null,
       mobileChatMessages: [],
       activeTaskLineId: null,
       mobileAgentPhase: 'idle',
+      mobileTaskDisplayIndex: 0,
     })
   },
 
@@ -187,6 +199,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       mobileChatMessages: [],
       activeTaskLineId: null,
       mobileAgentPhase: 'idle',
+      mobileTaskDisplayIndex: 0,
     })
   },
 
@@ -541,6 +554,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       mobileChatMessages: [],
       activeTaskLineId: null,
       mobileAgentPhase: 'idle',
+      mobileTaskDisplayIndex: 0,
     }),
 
   appendMobileChat: (msg) =>
@@ -558,6 +572,8 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   setActiveTask: (lineId) => set({ activeTaskLineId: lineId }),
 
   setMobileAgentPhase: (phase) => set({ mobileAgentPhase: phase }),
+
+  setMobileTaskDisplayIndex: (index) => set({ mobileTaskDisplayIndex: index }),
 
   completeActiveMobileTask: (payload) => {
     const { activeTaskLineId, orders, role } = get()
@@ -626,6 +642,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
       mobileChatMessages: [],
       activeTaskLineId: null,
       mobileAgentPhase: 'idle',
+      mobileTaskDisplayIndex: 0,
     })
 
     get().appendMobileChat({
@@ -641,4 +658,7 @@ export const useShortageStore = create<ShortageState>((set, get) => ({
   closeMobileDashboardSheet: () => set({ mobileDashboardOpen: false }),
   openMobileTaskListSheet: () => set({ mobileTaskListOpen: true }),
   closeMobileTaskListSheet: () => set({ mobileTaskListOpen: false }),
+  openMobilePipelineStageSheet: (stageKey) =>
+    set({ mobilePipelineStageKey: stageKey, mobileTaskListOpen: false }),
+  closeMobilePipelineStageSheet: () => set({ mobilePipelineStageKey: null }),
 }))

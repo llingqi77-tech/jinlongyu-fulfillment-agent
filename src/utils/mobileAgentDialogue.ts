@@ -1,9 +1,8 @@
 // LLM integration point: replace handleMobileUserMessage with model + tool calls.
 
 import { useShortageStore, type ShortageState } from '../store/shortageStore'
-import type { RoleTaskItem, WorkbenchRole } from '../types/shortage'
-import { FULFILLMENT_METHOD_LABEL, LINE_STATUS_LABEL } from '../constants/shortageLabels'
-import { generateProcurementAdvice } from './procurementAdviceGenerator'
+import type { MobileOrderInfoDetail, RoleTaskItem, ShortagePO, WorkbenchRole } from '../types/shortage'
+import { LINE_STATUS_LABEL } from '../constants/shortageLabels'
 import {
   findTaskByUserText,
   getMobileHomeKpis,
@@ -11,38 +10,147 @@ import {
   MOBILE_SUGGESTED_QUESTIONS,
   parseProcurementAdviceFromText,
   parseSalesFulfillmentFromText,
-  parseSupplierChoiceFromText,
 } from './mobileAgentSummary'
 import {
+  getTaskLineDetails,
+  toMobileOrderInfoDetail,
+} from './mobileOpsTaskDetail'
+import { buildQuickActionReply, isRoleQuickActionMessage } from './mobileQuickActions'
+import { appendAgentReplies, type AgentDialogueReply } from './mobileChatReplies'
+import {
+  appendProcurementSourcingExtras,
+  handleProcurementSourcingInput,
+} from './mobileProcurementSourcing'
+import {
   daysRemaining,
-  ensureLineSuppliers,
   getShortageLines,
   isDeliveryToday,
   isFulfillmentDone,
 } from './shortageAggregations'
 
 export type DialogueResult = {
-  replies: string[]
+  replies: Array<string | AgentDialogueReply>
   clearActiveTask?: boolean
+  startTask?: RoleTaskItem
+  startViaContinue?: boolean
+  completedOrder?: {
+    taskIndex: number
+    fulfillmentMethodLabel: string
+    fulfillmentFieldLabel?: string
+    fulfillmentDetail?: string
+    orderDetails: MobileOrderInfoDetail[]
+    taskProgress?: string
+  }
+  nextTaskHint?: string
+}
+
+function resolveTaskDisplayIndex(
+  task: RoleTaskItem,
+  tasks: RoleTaskItem[],
+  store: ShortageState,
+  viaContinue?: boolean
+): number {
+  if (viaContinue) return store.mobileTaskDisplayIndex + 1
+  const idx = tasks.findIndex((t) => t.lineId === task.lineId)
+  return idx >= 0 ? idx + 1 : 1
+}
+
+function taskGuidePrompt(role: WorkbenchRole, task: RoleTaskItem, taskIndex: number): string {
+  const prefix = `以上是第${taskIndex}个订单信息，`
+  if (role === 'sales') {
+    return `${prefix}请把和客户沟通的要点发给我，我来完成履约方式判断。`
+  }
+  if (role === 'procurement' && task.stage === 'procurement_advice') {
+    return `${prefix}请提交履约建议：选择【延期】或【当期到货（加急）】，并说明原因。`
+  }
+  if (role === 'procurement' && task.stage === 'procurement') {
+    return `${prefix}采购寻源需完成两步：明确供应商并提交 OA，审批通过后提交采购订单。`
+  }
+  return `${prefix}请告诉我需要如何处理「${task.title}」。`
+}
+
+function appendTaskStartMessages(
+  task: RoleTaskItem,
+  store: ShortageState,
+  options?: { viaContinue?: boolean }
+) {
+  const { role, orders, appendMobileChat, setActiveTask, setMobileAgentPhase, setMobileTaskDisplayIndex } =
+    store
+  if (role === 'ops') return
+
+  const tasks = getRoleTasksSorted(orders, role)
+  const taskIndex = resolveTaskDisplayIndex(task, tasks, store, options?.viaContinue)
+  setMobileTaskDisplayIndex(taskIndex)
+  setActiveTask(task.lineId)
+  setMobileAgentPhase('awaiting_task_input')
+
+  const details = getTaskLineDetails(orders, task, task.stage).map(toMobileOrderInfoDetail)
+  appendMobileChat({
+    side: 'agent',
+    kind: 'order_info',
+    content: '',
+    meta: {
+      orderDetails: details,
+      taskProgress: task.sub,
+      taskIndex,
+      orderStatus: 'active',
+    },
+  })
+
+  if (role === 'procurement' && task.stage === 'procurement') {
+    appendProcurementSourcingExtras(task, taskIndex, store)
+    return
+  }
+
+  appendMobileChat({
+    side: 'agent',
+    content: taskGuidePrompt(role, task, taskIndex),
+    stream: true,
+  })
+}
+
+function buildNextTaskHint(role: WorkbenchRole, orders: ShortagePO[]): string | undefined {
+  const remaining = getRoleTasksSorted(orders, role)
+  const next = remaining[0]
+  if (!next) return '今日待办已全部处理完毕。'
+  const delivery = next.requiredDeliveryDate?.slice(5) ?? '—'
+  return `最紧急的下一项：${next.title}（交期 ${delivery}）。请说继续。`
+}
+
+function applyDialogueResult(result: DialogueResult, store: ShortageState) {
+  appendAgentReplies(store, result.replies)
+  if (result.completedOrder) {
+    store.appendMobileChat({
+      side: 'agent',
+      kind: 'order_info',
+      content: '',
+      meta: {
+        orderDetails: result.completedOrder.orderDetails,
+        taskIndex: result.completedOrder.taskIndex,
+        fulfillmentMethodLabel: result.completedOrder.fulfillmentMethodLabel,
+        fulfillmentFieldLabel: result.completedOrder.fulfillmentFieldLabel,
+        fulfillmentDetail: result.completedOrder.fulfillmentDetail,
+        orderStatus: 'completed',
+        taskProgress: result.completedOrder.taskProgress,
+      },
+    })
+  }
+  if (result.nextTaskHint) {
+    store.appendMobileChat({ side: 'agent', content: result.nextTaskHint, stream: true })
+  }
+  if (result.startTask) {
+    appendTaskStartMessages(result.startTask, store, { viaContinue: result.startViaContinue })
+  }
+  if (result.clearActiveTask) {
+    store.setActiveTask(null)
+    store.setMobileAgentPhase('idle')
+  }
 }
 
 function getLineContext(store: ShortageState, lineId: string) {
   return store.orders
     .flatMap((po) => po.lines.map((l) => ({ ...l, po })))
     .find((l) => l.id === lineId)
-}
-
-function taskGuidePrompt(role: WorkbenchRole, task: RoleTaskItem): string {
-  if (role === 'sales') {
-    return `好的，我们来处理「${task.title}」。\n请把和客户沟通的要点发给我（可直接粘贴微信记录），我来判断履约方式。`
-  }
-  if (role === 'procurement' && task.stage === 'procurement_advice') {
-    return `好的，请确认或补充「${task.title}」的履约建议（也可直接说「确认」或「建议当期到货」）。`
-  }
-  if (role === 'procurement' && task.stage === 'procurement') {
-    return `好的，请为「${task.title}」选择供应商，可以说「用推荐第一家」。`
-  }
-  return `已选中「${task.title}」，请告诉我需要如何处理。`
 }
 
 function answerFaq(
@@ -134,6 +242,26 @@ function answerFaq(
   return null
 }
 
+function tryContinueNext(
+  text: string,
+  role: WorkbenchRole,
+  store: ShortageState
+): DialogueResult | null {
+  if (role === 'ops') return null
+  if (!/^(继续|继续处理|下一项|下一个)$/.test(text.trim())) return null
+
+  if (store.mobileAgentPhase === 'awaiting_task_input') {
+    return { replies: ['请先完成当前订单的处理，再说「继续」。'] }
+  }
+
+  const tasks = getRoleTasksSorted(store.orders, role)
+  if (tasks.length === 0) {
+    return { replies: ['今日待办已全部处理完毕。'] }
+  }
+
+  return { startTask: tasks[0], startViaContinue: true, replies: [] }
+}
+
 function trySelectTask(
   text: string,
   role: WorkbenchRole,
@@ -161,9 +289,7 @@ function trySelectTask(
     }
   }
 
-  store.setActiveTask(task.lineId)
-  store.setMobileAgentPhase('awaiting_task_input')
-  return { replies: [taskGuidePrompt(role, task)] }
+  return { startTask: task, replies: [] }
 }
 
 function handleTaskInput(
@@ -192,57 +318,54 @@ function handleTaskInput(
         ],
       }
     }
+    const taskIndex = store.mobileTaskDisplayIndex
+    const orderDetails = getTaskLineDetails(store.orders, task, task.stage).map(toMobileOrderInfoDetail)
     store.completeActiveMobileTask({
       fulfillmentMethod: parsed.method,
       salesNote: parsed.note,
     })
-    const remaining = getRoleTasksSorted(useShortageStore.getState().orders, role)
-    const next = remaining[0]
-    const nextHint = next
-      ? `\n\n最紧急的下一项：${next.title}（交期 ${next.requiredDeliveryDate?.slice(5)}）。要说「先完成第 1 个」即可继续。`
-      : '\n\n今日待办已全部处理完毕。'
     return {
-      replies: [
-        `已理解为「${parsed.label}」，并为「${task.title}」保存。该项已完成。${nextHint}`,
-      ],
+      replies: [`已理解为「${parsed.label}」，并为「${task.title}」保存。该项已完成。`],
+      completedOrder: {
+        taskIndex,
+        fulfillmentMethodLabel: parsed.label,
+        orderDetails,
+        taskProgress: task.sub,
+      },
+      nextTaskHint: buildNextTaskHint(role, useShortageStore.getState().orders),
       clearActiveTask: true,
     }
   }
 
   if (role === 'procurement' && task.stage === 'procurement_advice') {
-    const advice =
-      parseProcurementAdviceFromText(text) ??
-      generateProcurementAdvice(ctx, ctx.po).slice(0, 40)
-    store.completeActiveMobileTask({ opsAdvice: advice })
-    const remaining = getRoleTasksSorted(useShortageStore.getState().orders, role)
-    const next = remaining[0]
+    const parsed = parseProcurementAdviceFromText(text)
+    if (!parsed) {
+      return {
+        replies: [
+          '请提交履约建议：选择【延期】或【当期到货（加急）】，并说明原因。例如：「延期，到仓+物流预计晚于交期，需销售与客户协商新交期」或「当期到货（加急），婚宴活动用油交期不可拖」。',
+        ],
+      }
+    }
+    const taskIndex = store.mobileTaskDisplayIndex
+    const orderDetails = getTaskLineDetails(store.orders, task, task.stage).map(toMobileOrderInfoDetail)
+    store.completeActiveMobileTask({ opsAdvice: parsed.advice })
     return {
-      replies: [
-        `履约建议已确认：「${advice}」，已流转销售。${next ? `下一项：${next.title}。` : '相关待办已清空。'}`,
-      ],
+      replies: [`履约建议已提交：【${parsed.label}】。该项已完成，已流转销售沟通。`],
+      completedOrder: {
+        taskIndex,
+        fulfillmentFieldLabel: '履约建议',
+        fulfillmentMethodLabel: parsed.label,
+        fulfillmentDetail: parsed.reason,
+        orderDetails,
+        taskProgress: task.sub,
+      },
+      nextTaskHint: buildNextTaskHint(role, useShortageStore.getState().orders),
       clearActiveTask: true,
     }
   }
 
   if (role === 'procurement' && task.stage === 'procurement') {
-    const line = ensureLineSuppliers(ctx)
-    const choice = parseSupplierChoiceFromText(
-      text,
-      line.recommendedSuppliers.map((s) => s.name)
-    )
-    if (!choice) {
-      return {
-        replies: ['请告诉我要选哪家供应商，例如「用推荐第一家」。'],
-      }
-    }
-    store.completeActiveMobileTask({ supplierIndex: choice.index })
-    const methodLabel = FULFILLMENT_METHOD_LABEL[ctx.fulfillmentMethod]
-    return {
-      replies: [
-        `已为「${task.title}」选用供应商并提交处理（${methodLabel}）。OA/采购单流程已启动，完成后会从待办列表移除。`,
-      ],
-      clearActiveTask: true,
-    }
+    return handleProcurementSourcingInput(text, task, store, buildNextTaskHint)
   }
 
   return null
@@ -259,6 +382,14 @@ export function handleMobileUserMessage(text: string): DialogueResult {
 
   const taskInput = handleTaskInput(trimmed, role, store)
   if (taskInput) return taskInput
+
+  const continueNext = tryContinueNext(trimmed, role, store)
+  if (continueNext) return continueNext
+
+  if (isRoleQuickActionMessage(trimmed, role)) {
+    const quickReply = buildQuickActionReply(trimmed, role, store.orders)
+    if (quickReply) return { replies: [quickReply] }
+  }
 
   const faq = answerFaq(trimmed, role, store)
   if (faq) return { replies: [faq] }
@@ -286,6 +417,25 @@ export function buildTaskSelectMessage(index: number): string {
   return `我想先完成第 ${index} 个任务`
 }
 
+export function startMobileTaskInChat(task: RoleTaskItem) {
+  const state = useShortageStore.getState()
+  if (state.mobileOnboardingPhase !== 'ready' || state.role === 'ops') return
+  applyDialogueResult({ startTask: task, replies: [] }, state)
+}
+
+export function startMobileTaskByIndex(index: number) {
+  const state = useShortageStore.getState()
+  const tasks = getRoleTasksSorted(state.orders, state.role)
+  const task = tasks[index - 1]
+  if (task) startMobileTaskInChat(task)
+}
+
+export function pickRecommendedSupplier(supplierIndex: number) {
+  const ordinals = ['一', '二', '三']
+  const ordinal = ordinals[supplierIndex - 1] ?? String(supplierIndex)
+  sendMobileAgentMessage(`用推荐第${ordinal}家`)
+}
+
 export function sendMobileAgentMessage(text: string) {
   const trimmed = text.trim()
   if (!trimmed) return
@@ -293,15 +443,8 @@ export function sendMobileAgentMessage(text: string) {
   const state = useShortageStore.getState()
   if (state.mobileOnboardingPhase !== 'ready') return
 
-  const { appendMobileChat, setActiveTask, setMobileAgentPhase } = state
-  appendMobileChat({ side: 'user', content: trimmed })
+  state.appendMobileChat({ side: 'user', content: trimmed })
 
   const result = handleMobileUserMessage(trimmed)
-  for (const reply of result.replies) {
-    appendMobileChat({ side: 'agent', content: reply, stream: true })
-  }
-  if (result.clearActiveTask) {
-    setActiveTask(null)
-    setMobileAgentPhase('idle')
-  }
+  applyDialogueResult(result, state)
 }

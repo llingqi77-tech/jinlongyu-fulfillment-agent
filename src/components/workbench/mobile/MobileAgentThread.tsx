@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShortageStore } from '../../../store/shortageStore'
+import { pickRecommendedSupplier, sendMobileAgentMessage } from '../../../utils/mobileAgentDialogue'
 import { ChatMessageRow } from '../shared/ChatMessageRow'
-import { MobileChatMessageLayout } from './MobileChatMessageLayout'
+import { MobileChatMessageGrid } from './MobileChatMessageGrid'
+import { MobileOrderInfoCard } from './MobileOrderInfoCard'
+import { MobileSupplierOptionsCard } from './MobileSupplierOptionsCard'
+import { MobilePipelineProgressBoard } from './MobilePipelineProgressBoard'
 import { MobileWelcomeCardMessage } from './MobileWelcomeCardMessage'
 
 export function MobileAgentThread() {
   const messages = useShortageStore((s) => s.mobileChatMessages)
+  const role = useShortageStore((s) => s.role)
   const threadRef = useRef<HTMLDivElement>(null)
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const prevCountRef = useRef(0)
@@ -13,7 +18,9 @@ export function MobileAgentThread() {
   useEffect(() => {
     const el = threadRef.current
     if (!el) return
-    el.scrollTop = el.scrollHeight
+    const welcomeOnly =
+      messages.length === 1 && messages[0]?.kind === 'welcome_card' && messages[0]?.side === 'agent'
+    el.scrollTop = welcomeOnly ? 0 : el.scrollHeight
   }, [messages, streamingId])
 
   useEffect(() => {
@@ -32,14 +39,47 @@ export function MobileAgentThread() {
       {messages.map((msg) => {
         if (msg.kind === 'welcome_card' && msg.side === 'agent') {
           return (
-            <MobileChatMessageLayout
+            <div
               key={msg.id}
-              side="agent"
-              time={msg.timestamp}
-              bodyClassName="chat-message__body--card"
+              className={`mobile-welcome-card-group${
+                role === 'ops' ? ' mobile-welcome-card-group--ops' : ''
+              }`}
             >
-              <MobileWelcomeCardMessage meta={msg.meta} />
-            </MobileChatMessageLayout>
+              {msg.timestamp ? (
+                <div className="mobile-welcome-card-group__time">
+                  <span className="chat-message__time">{msg.timestamp}</span>
+                </div>
+              ) : null}
+              <MobilePipelineProgressBoard />
+              {role !== 'ops' ? <MobileWelcomeCardMessage meta={msg.meta} /> : null}
+            </div>
+          )
+        }
+
+        if (msg.kind === 'supplier_options' && msg.side === 'agent') {
+          return (
+            <MobileChatMessageGrid key={msg.id} side="agent">
+              <MobileSupplierOptionsCard
+                suppliers={msg.meta?.suppliers ?? []}
+                onSelect={pickRecommendedSupplier}
+              />
+            </MobileChatMessageGrid>
+          )
+        }
+
+        if (msg.kind === 'order_info' && msg.side === 'agent') {
+          return (
+            <MobileChatMessageGrid key={msg.id} side="agent">
+              <MobileOrderInfoCard
+                details={msg.meta?.orderDetails ?? []}
+                progress={msg.meta?.taskProgress}
+                taskIndex={msg.meta?.taskIndex}
+                fulfillmentMethodLabel={msg.meta?.fulfillmentMethodLabel}
+                fulfillmentFieldLabel={msg.meta?.fulfillmentFieldLabel}
+                fulfillmentDetail={msg.meta?.fulfillmentDetail}
+                completed={msg.meta?.orderStatus === 'completed'}
+              />
+            </MobileChatMessageGrid>
           )
         }
 
@@ -52,7 +92,9 @@ export function MobileAgentThread() {
             showName={false}
             time={msg.timestamp}
             content={msg.content}
-            stream={!isUser && msg.id === streamingId && msg.kind !== 'welcome_card'}
+            actions={!isUser ? msg.meta?.actions : undefined}
+            onAction={sendMobileAgentMessage}
+            stream={!isUser && msg.id === streamingId && msg.kind !== 'welcome_card' && msg.kind !== 'order_info' && msg.kind !== 'supplier_options'}
             onStreamComplete={() => {
               if (msg.id === streamingId) setStreamingId(null)
             }}

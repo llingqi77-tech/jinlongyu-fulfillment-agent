@@ -253,13 +253,57 @@ export function parseSalesFulfillmentFromText(text: string): ParsedFulfillment |
   return null
 }
 
-export function parseProcurementAdviceFromText(text: string): string | null {
+export interface ParsedProcurementAdvice {
+  choice: 'defer' | 'must_on_time'
+  label: string
+  reason: string
+  advice: string
+}
+
+const PROCUREMENT_ADVICE_MAX_LEN = 40
+
+function buildProcurementAdviceText(label: string, reason: string): string {
+  const prefix = `建议${label}：`
+  const maxReason = Math.max(4, PROCUREMENT_ADVICE_MAX_LEN - prefix.length)
+  return `${prefix}${reason.trim().slice(0, maxReason)}`
+}
+
+export function parseProcurementAdviceFromText(text: string): ParsedProcurementAdvice | null {
   const t = text.trim()
   if (!t) return null
-  if (/确认|同意|可以|当期|加急/.test(t)) {
-    return t.slice(0, 40) || '建议销售沟通延期或当期加急'
+
+  const mentionsDefer = /延期|顺延|推迟|往后|下周/.test(t)
+  const mentionsUrgent = /当期|加急|按时|必须到货|紧急|当期到货/.test(t)
+
+  if (mentionsDefer && mentionsUrgent) return null
+
+  let choice: 'defer' | 'must_on_time' | null = null
+  if (mentionsDefer) choice = 'defer'
+  else if (mentionsUrgent) choice = 'must_on_time'
+  else return null
+
+  let reason = t
+    .replace(/^(建议|选择|选|提交)/, '')
+    .replace(/履约建议[是为：:]/, '')
+    .replace(/【延期】|【当期到货（加急）】|【当期到货】/g, '')
+    .replace(/延期|顺延|推迟|当期到货（加急）|当期到货|当期|加急/g, '')
+    .replace(/^[，,、：:\s]+/, '')
+    .replace(/[，,、：:\s]+$/, '')
+    .trim()
+
+  if (reason.length < 2) return null
+
+  const label =
+    choice === 'defer'
+      ? FULFILLMENT_METHOD_LABEL.defer
+      : FULFILLMENT_METHOD_LABEL.must_on_time
+
+  return {
+    choice,
+    label,
+    reason,
+    advice: buildProcurementAdviceText(label, reason),
   }
-  return t.slice(0, 40)
 }
 
 export function parseSupplierChoiceFromText(
@@ -274,6 +318,30 @@ export function parseSupplierChoiceFromText(
   for (let i = 0; i < supplierNames.length; i++) {
     if (t.includes(supplierNames[i])) return { index: i, name: supplierNames[i] }
   }
+  return null
+}
+
+export function parseCustomSupplierFromText(
+  text: string
+): { name: string; amount: number } | null {
+  const t = text.trim()
+  if (!t) return null
+
+  const manualMatch = t.match(/手动录入\s+(.+?)\s+(\d+)\s*$/)
+  if (manualMatch) {
+    return { name: manualMatch[1].trim(), amount: Number(manualMatch[2]) }
+  }
+
+  const labeledMatch = t.match(/供应商[：:]\s*(.+?)[，,\s]+金额[：:]\s*(\d+)/)
+  if (labeledMatch) {
+    return { name: labeledMatch[1].trim(), amount: Number(labeledMatch[2]) }
+  }
+
+  const simpleMatch = t.match(/^(.{2,}?)\s+(\d{3,})\s*$/)
+  if (simpleMatch && !/用推荐|第\s*\d+\s*个/.test(t)) {
+    return { name: simpleMatch[1].trim(), amount: Number(simpleMatch[2]) }
+  }
+
   return null
 }
 

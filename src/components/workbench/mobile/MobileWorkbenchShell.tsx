@@ -1,7 +1,6 @@
 import { WorkbenchOverlay } from '../pipeline/WorkbenchOverlay'
 import { useShortageStore } from '../../../store/shortageStore'
 import { ROLE_LABEL } from '../../../utils/mobileAgentSummary'
-import { MobileChatToolbar } from './MobileChatToolbar'
 import { MobileWorkbenchContent } from './MobileWorkbenchContent'
 
 export function MobileWorkbenchShell() {
@@ -15,10 +14,12 @@ export function MobileWorkbenchShell() {
   })
 
   const showChatHeader = phase === 'ready'
+  const showWorkbenchHeader = phase === 'ready'
 
   return (
     <>
-      <header className="mobile-workbench-header">
+      {showWorkbenchHeader ? (
+        <header className="mobile-workbench-header">
         <div className="mobile-workbench-header__top">
           <button
             type="button"
@@ -46,9 +47,9 @@ export function MobileWorkbenchShell() {
               ) : null}
             </div>
           </div>
-          {showChatHeader ? <MobileChatToolbar /> : null}
         </div>
       </header>
+      ) : null}
       <main className="workbench-main">
         <MobileWorkbenchContent />
         <WorkbenchOverlay />
